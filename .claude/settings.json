@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(**/*.md)",
+      "Read(**/*.md)",
+      "Bash(pnpm *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)",
+      "Bash(node *)"
+    ],
+    "ask": [
+      "Edit",
+      "Write",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(curl *)",
+      "Bash(cd *)",
+      "Bash(docker *)"
+    ],
+    "deny": [
+      "Read(**/.env*)",
+      "Read(**/secrets/**)",
+      "Bash(git push *)",
+      "Bash(git reset --hard *)",
+      "Bash(rm -rf *)",
+      "Bash(wget *)",
+      "Bash(find * -delete *)"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "0"
+  }
+}
