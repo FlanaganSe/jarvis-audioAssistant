@@ -4,12 +4,16 @@ description: Technology choices and constraints.
 # Stack
 
 - **Runtime**: Node.js 22+ with TypeScript 5.x
-- **Frontend**: N/A (voice-first; mobile client TBD — Kotlin/Swift bonus)
-- **Backend**: Express or Fastify (TBD — choose during /research)
-- **Database**: PostgreSQL (conversation memory, user data) + Redis (session/cache)
-- **AI/LLM**: OpenAI Realtime API or similar (TBD — choose during /research)
-- **Audio**: WebSocket-based real-time audio streaming
-- **Styling**: N/A
+- **Frontend**: React + Vite (companion web UI); React Native + Expo (mobile, P2 stretch)
+- **Backend**: Fastify
+- **Database**: PostgreSQL + pgvector (conversation memory, user data, semantic search) + Redis (session/cache)
+- **ORM**: Drizzle
+- **AI/LLM**: OpenAI Realtime API (`gpt-realtime-mini`); transport pending M0 evaluation (relay WS vs client WebRTC + server sideband)
+- **Audio**: Real-time audio streaming (Opus client↔server, PCM16 server↔OpenAI); transport architecture finalized in M0
+- **GitHub**: Octokit (`@octokit/rest` + `@octokit/graphql`)
+- **Auth**: Custom JWT via `jose`
+- **Styling**: N/A (minimal companion UI)
 - **Tests**: Vitest
 - **Package manager**: pnpm
-- **Linter**: ESLint + Prettier (or Biome)
+- **Linter**: Biome
+- **Deployment**: Railway (managed Postgres + Redis)

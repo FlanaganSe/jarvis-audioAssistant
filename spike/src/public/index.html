@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jarvis — M0 Spike</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #0a0a0f; color: #e0e0e0; padding: 20px; }
+  h1 { font-size: 1.4em; margin-bottom: 12px; color: #7eb8ff; }
+
+  .controls { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .status { padding: 4px 10px; border-radius: 4px; font-size: 0.85em; font-weight: 600; }
+  .status.idle { background: #333; }
+  .status.connecting { background: #665500; color: #ffd700; }
+  .status.listening { background: #003366; color: #66b3ff; }
+  .status.processing { background: #553300; color: #ffaa33; }
+  .status.speaking { background: #003300; color: #66ff66; }
+  .status.error { background: #550000; color: #ff6666; }
+
+  .mode-toggle { display: flex; gap: 0; border-radius: 6px; overflow: hidden; border: 1px solid #444; }
+  .mode-toggle button { padding: 6px 14px; background: #1a1a2e; border: none; color: #999; cursor: pointer; font-size: 0.85em; }
+  .mode-toggle button.active { background: #2a2a4e; color: #7eb8ff; font-weight: 600; }
+
+  .connection { font-size: 0.8em; color: #888; }
+  .connection.connected { color: #66ff66; }
+  .connection.disconnected { color: #ff6666; }
+
+  #ptt {
+    width: 200px; height: 200px; border-radius: 50%; border: 4px solid #444;
+    background: #1a1a2e; color: #7eb8ff; font-size: 1.2em; font-weight: 700;
+    cursor: pointer; user-select: none; -webkit-user-select: none;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.1s;
+    margin: 20px auto;
+  }
+  #ptt:active, #ptt.active { background: #003366; border-color: #66b3ff; transform: scale(0.95); }
+  #ptt.disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #log {
+    background: #111118; border: 1px solid #333; border-radius: 6px;
+    padding: 12px; height: 400px; overflow-y: auto; font-family: 'SF Mono', monospace;
+    font-size: 0.8em; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  }
+  .log-time { color: #666; }
+  .log-event { color: #7eb8ff; }
+  .log-user { color: #66b3ff; }
+  .log-assistant { color: #66ff99; }
+  .log-tool { color: #ffaa33; }
+  .log-metric { color: #ff66ff; font-weight: 600; }
+  .log-error { color: #ff6666; }
+</style>
+</head>
+<body>
+<h1>Jarvis M0 Spike</h1>
+
+<div class="controls">
+  <div class="mode-toggle">
+    <button id="mode-relay" class="active">Relay (WS)</button>
+    <button id="mode-webrtc">WebRTC</button>
+  </div>
+  <span id="status" class="status idle">idle</span>
+  <span id="connection" class="connection disconnected">disconnected</span>
+</div>
+
+<button id="ptt" class="disabled">Hold to Talk</button>
+
+<div id="log"></div>
+
+<script type="module">
+
+// ─── State ───────────────────────────────────────────────────────────
+let mode = 'relay'; // 'relay' | 'webrtc'
+let state = 'idle';  // idle | connecting | listening | processing | speaking | error
+
+// Relay mode state
+let relayWs = null;
+let audioCtx = null;
+let micStream = null;
+let workletNode = null;
+
+// WebRTC mode state
+let pc = null;
+let dc = null; // data channel
+let toolWs = null;
+let remoteAudioEl = null;
+
+// Shared audio playback state (relay mode)
+let playbackQueue = [];
+let isPlaying = false;
+let nextPlayTime = 0;
+
+// Interruption tracking
+let currentItemId = null;
+let currentResponseId = null;
+let totalAudioBytesScheduled = 0;
+let totalAudioBytesPlayed = 0;
+let commitTimestamp = 0;
+let firstAudioTimestamp = 0;
+
+// Transcript accumulation
+let currentTranscript = '';
+
+// ─── UI ──────────────────────────────────────────────────────────────
+const statusEl = document.getElementById('status');
+const connEl = document.getElementById('connection');
+const pttEl = document.getElementById('ptt');
+const logEl = document.getElementById('log');
+
+function setStatus(s) {
+  state = s;
+  statusEl.className = `status ${s}`;
+  statusEl.textContent = s;
+}
+
+function setConnected(connected) {
+  connEl.className = `connection ${connected ? 'connected' : 'disconnected'}`;
+  connEl.textContent = connected ? 'connected' : 'disconnected';
+  pttEl.classList.toggle('disabled', !connected);
+}
+
+function log(text, cls = 'log-event') {
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false, fractionalSecondDigits: 3 });
+  const line = document.createElement('div');
+  line.innerHTML = `<span class="log-time">${time}</span> <span class="${cls}">${text}</span>`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+  console.log(`[${time}] ${text}`);
+}
+
+function logMetric(name, value) {
+  log(`METRIC ${name}: ${value}ms`, 'log-metric');
+}
+
+// ─── Audio Helpers ───────────────────────────────────────────────────
+function ensureAudioCtx() {
+  if (!audioCtx) audioCtx = new AudioContext({ sampleRate: 24000 });
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// PCM16 base64 → Float32Array
+function decodePCM16(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const int16 = new Int16Array(bytes.buffer);
+  const float32 = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+  return float32;
+}
+
+// Schedule PCM16 audio for playback (relay mode)
+function scheduleAudio(base64) {
+  const ctx = ensureAudioCtx();
+  const samples = decodePCM16(base64);
+  const buffer = ctx.createBuffer(1, samples.length, 24000);
+  buffer.copyToChannel(samples, 0);
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+
+  const now = ctx.currentTime;
+  const startTime = Math.max(now, nextPlayTime);
+  source.start(startTime);
+  nextPlayTime = startTime + buffer.duration;
+
+  // Track bytes for interruption cursor
+  const byteCount = samples.length * 2; // 16-bit = 2 bytes per sample
+  totalAudioBytesScheduled += byteCount;
+
+  if (!isPlaying) {
+    isPlaying = true;
+    setStatus('speaking');
+  }
+
+  // Track bytes played and detect end of all scheduled audio
+  source.onended = () => {
+    totalAudioBytesPlayed += byteCount;
+    if (ctx.currentTime >= nextPlayTime - 0.01) {
+      isPlaying = false;
+      if (state === 'speaking') setStatus('idle');
+      // Reset tracking only when all audio finishes playing
+      currentTranscript = '';
+    }
+  };
+}
+
+function stopPlayback() {
+  if (!audioCtx) return 0;
+  // Calculate how much audio was actually heard
+  const audioEndMs = Math.floor(totalAudioBytesPlayed / 48);
+  // Reset playback
+  nextPlayTime = 0;
+  isPlaying = false;
+  // Close and recreate audio context to stop all scheduled sources
+  audioCtx.close();
+  audioCtx = null;
+  return audioEndMs;
+}
+
+function resetPlaybackTracking() {
+  totalAudioBytesScheduled = 0;
+  totalAudioBytesPlayed = 0;
+  currentItemId = null;
+  currentResponseId = null;
+  currentTranscript = '';
+  nextPlayTime = 0;
+  isPlaying = false;
+}
+
+// ─── AudioWorklet for PCM16 capture at 24kHz ────────────────────────
+const workletCode = `
+class PCM16Processor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.buffer = [];
+  }
+  process(inputs) {
+    const input = inputs[0]?.[0];
+    if (!input) return true;
+    // Convert float32 to int16
+    for (let i = 0; i < input.length; i++) {
+      const s = Math.max(-1, Math.min(1, input[i]));
+      this.buffer.push(s < 0 ? s * 0x8000 : s * 0x7FFF);
+    }
+    // Send chunks of ~2400 samples (100ms at 24kHz)
+    if (this.buffer.length >= 2400) {
+      const chunk = this.buffer.splice(0, 2400);
+      const int16 = new Int16Array(chunk);
+      this.port.postMessage(int16.buffer, [int16.buffer]);
+    }
+    return true;
+  }
+}
+registerProcessor('pcm16-processor', PCM16Processor);
+`;
+
+async function startMic() {
+  const ctx = ensureAudioCtx();
+  if (!micStream) {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { sampleRate: 24000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+  }
+
+  const blob = new Blob([workletCode], { type: 'application/javascript' });
+  const url = URL.createObjectURL(blob);
+  await ctx.audioWorklet.addModule(url);
+  URL.revokeObjectURL(url);
+
+  const source = ctx.createMediaStreamSource(micStream);
+  workletNode = new AudioWorkletNode(ctx, 'pcm16-processor');
+  workletNode.port.onmessage = (e) => {
+    const int16 = new Int16Array(e.data);
+    const base64 = arrayBufferToBase64(int16.buffer);
+    if (mode === 'relay' && relayWs?.readyState === WebSocket.OPEN) {
+      relayWs.send(JSON.stringify({ type: 'audio', audio: base64 }));
+    }
+    // WebRTC mode: audio goes directly via WebRTC track, no manual sending
+  };
+  source.connect(workletNode);
+  workletNode.connect(ctx.destination); // needed to keep the worklet alive
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+// ─── Mode: Relay (WS) ───────────────────────────────────────────────
+async function connectRelay() {
+  setStatus('connecting');
+  log('Connecting relay WS...');
+
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  relayWs = new WebSocket(`${proto}//${location.host}/api/relay`);
+
+  relayWs.onopen = () => {
+    log('Relay WS connected');
+  };
+
+  relayWs.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    switch (msg.type) {
+      case 'session.ready':
+        setConnected(true);
+        setStatus('idle');
+        log('Session ready — hold button to talk');
+        break;
+
+      case 'audio':
+        if (!currentItemId) currentItemId = msg.item_id;
+        if (!currentResponseId) currentResponseId = msg.response_id;
+        if (!firstAudioTimestamp && commitTimestamp) {
+          firstAudioTimestamp = Date.now();
+          logMetric('E2E latency (commit→first audio)', firstAudioTimestamp - commitTimestamp);
+        }
+        scheduleAudio(msg.delta);
+        break;
+
+      case 'transcript':
+        currentTranscript += msg.delta;
+        break;
+
+      case 'transcript.done':
+        log(`Assistant: ${msg.transcript}`, 'log-assistant');
+        break;
+
+      case 'user_transcript':
+        log(`User: ${msg.transcript}`, 'log-user');
+        break;
+
+      case 'tool_call':
+        log(`Tool call: ${msg.name}(${msg.arguments})`, 'log-tool');
+        break;
+
+      case 'tool_result':
+        log(`Tool result (${msg.duration_ms}ms): ${msg.result?.substring(0, 120)}...`, 'log-tool');
+        logMetric('Tool round-trip', msg.duration_ms);
+        break;
+
+      case 'response.created':
+        setStatus('processing');
+        break;
+
+      case 'response.done':
+        // Do NOT resetPlaybackTracking here — audio may still be playing.
+        // Tracking is reset when last audio buffer finishes (source.onended)
+        // or on interruption (pttDown).
+        if (state === 'processing') setStatus('speaking');
+        break;
+
+      case 'input_committed':
+        break;
+
+      case 'error':
+        log(`Error: ${JSON.stringify(msg.error)}`, 'log-error');
+        setStatus('error');
+        break;
+
+      default:
+        // Silently ignore unknown
+    }
+  };
+
+  relayWs.onerror = (e) => {
+    log(`WS error: ${e.type}`, 'log-error');
+    setStatus('error');
+    setConnected(false);
+  };
+
+  relayWs.onclose = () => {
+    log('Relay WS disconnected');
+    setConnected(false);
+    setStatus('idle');
+  };
+}
+
+function disconnectRelay() {
+  if (relayWs) { relayWs.close(); relayWs = null; }
+  if (workletNode) { workletNode.disconnect(); workletNode = null; }
+}
+
+// ─── Mode: WebRTC ────────────────────────────────────────────────────
+async function connectWebRTC() {
+  setStatus('connecting');
+  log('Setting up WebRTC...');
+
+  // Get mic stream
+  if (!micStream) {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true }
+    });
+  }
+
+  // Create peer connection
+  pc = new RTCPeerConnection();
+
+  // Add local audio track (start muted — unmute on push-to-talk)
+  const audioTrack = micStream.getAudioTracks()[0];
+  audioTrack.enabled = false; // muted until PTT press
+  pc.addTrack(audioTrack, micStream);
+
+  // Receive remote audio (Jarvis voice)
+  pc.ontrack = (e) => {
+    log('Got remote audio track');
+    if (!remoteAudioEl) {
+      remoteAudioEl = document.createElement('audio');
+      remoteAudioEl.autoplay = true;
+      document.body.appendChild(remoteAudioEl);
+    }
+    remoteAudioEl.srcObject = e.streams[0];
+  };
+
+  // Create data channel for events
+  dc = pc.createDataChannel('oai-events');
+  dc.onopen = () => {
+    log('Data channel open');
+    setConnected(true);
+    setStatus('idle');
+    log('WebRTC ready — hold button to talk');
+  };
+  dc.onclose = () => {
+    log('Data channel closed');
+    setConnected(false);
+  };
+  dc.onmessage = (e) => handleWebRTCEvent(JSON.parse(e.data));
+
+  // Create offer
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  // Wait for ICE gathering
+  await new Promise((resolve) => {
+    if (pc.iceGatheringState === 'complete') return resolve();
+    const check = () => {
+      if (pc.iceGatheringState === 'complete') {
+        pc.removeEventListener('icegatheringstatechange', check);
+        resolve();
+      }
+    };
+    pc.addEventListener('icegatheringstatechange', check);
+    // Timeout after 5s
+    setTimeout(resolve, 5000);
+  });
+
+  // SDP exchange through our server
+  try {
+    const resp = await fetch('/api/rtc/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sdp: pc.localDescription.sdp }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      log(`SDP exchange failed: ${err}`, 'log-error');
+      setStatus('error');
+      return;
+    }
+
+    const answerSdp = await resp.text();
+    await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+    log('WebRTC connection established');
+  } catch (err) {
+    log(`WebRTC setup failed: ${err.message}`, 'log-error');
+    setStatus('error');
+  }
+
+  // Connect tool WS
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  toolWs = new WebSocket(`${proto}//${location.host}/api/tools`);
+  toolWs.onopen = () => log('Tool WS connected');
+  toolWs.onmessage = (e) => handleToolResult(JSON.parse(e.data));
+  toolWs.onerror = () => log('Tool WS error', 'log-error');
+}
+
+function handleWebRTCEvent(event) {
+  switch (event.type) {
+    case 'session.created':
+      log(`WebRTC session created`);
+      break;
+
+    case 'session.updated':
+      log('WebRTC session configured');
+      break;
+
+    case 'response.output_audio.delta':
+    case 'response.audio.delta':
+      // In WebRTC mode, audio arrives via RTC track, not data channel
+      // But we still get these events — track the item_id for interruption
+      if (!currentItemId) currentItemId = event.item_id;
+      if (!currentResponseId) currentResponseId = event.response_id;
+      if (!firstAudioTimestamp && commitTimestamp) {
+        firstAudioTimestamp = Date.now();
+        logMetric('E2E latency (commit→first audio event)', firstAudioTimestamp - commitTimestamp);
+      }
+      break;
+
+    case 'output_audio_buffer.started':
+      setStatus('speaking');
+      break;
+
+    case 'output_audio_buffer.stopped':
+      if (state === 'speaking') setStatus('idle');
+      resetPlaybackTracking();
+      break;
+
+    case 'response.output_audio_transcript.delta':
+    case 'response.audio_transcript.delta':
+      currentTranscript += event.delta;
+      break;
+
+    case 'response.output_audio_transcript.done':
+    case 'response.audio_transcript.done':
+      log(`Assistant: ${event.transcript}`, 'log-assistant');
+      break;
+
+    case 'conversation.item.input_audio_transcription.completed':
+      log(`User: ${event.transcript}`, 'log-user');
+      break;
+
+    case 'response.function_call_arguments.done': {
+      log(`Tool call: ${event.name}(${event.arguments})`, 'log-tool');
+      const toolStart = Date.now();
+      // Forward to server for execution
+      if (toolWs?.readyState === WebSocket.OPEN) {
+        toolWs.send(JSON.stringify({
+          type: 'tool_call',
+          call_id: event.call_id,
+          name: event.name,
+          arguments: event.arguments,
+          _start: toolStart,
+        }));
+      }
+      break;
+    }
+
+    case 'response.created':
+      setStatus('processing');
+      break;
+
+    case 'response.done':
+      if (state !== 'speaking') setStatus('idle');
+      break;
+
+    case 'error':
+      log(`OpenAI error: ${JSON.stringify(event.error)}`, 'log-error');
+      break;
+
+    default:
+      // Ignore other events silently
+  }
+}
+
+function handleToolResult(msg) {
+  if (msg.type !== 'tool_result') return;
+
+  log(`Tool result (${msg.duration_ms}ms): ${msg.output?.substring(0, 120)}...`, 'log-tool');
+  logMetric('Tool round-trip', msg.duration_ms);
+
+  // Send tool output to OpenAI via data channel
+  if (dc?.readyState === 'open') {
+    dc.send(JSON.stringify({
+      type: 'conversation.item.create',
+      item: {
+        type: 'function_call_output',
+        call_id: msg.call_id,
+        output: msg.output,
+      },
+    }));
+    dc.send(JSON.stringify({ type: 'response.create' }));
+  }
+}
+
+function disconnectWebRTC() {
+  if (dc) { dc.close(); dc = null; }
+  if (pc) { pc.close(); pc = null; }
+  if (toolWs) { toolWs.close(); toolWs = null; }
+  if (remoteAudioEl) { remoteAudioEl.srcObject = null; }
+}
+
+// ─── Push-to-Talk ────────────────────────────────────────────────────
+let pttActive = false;
+let buttonReleaseTime = 0;
+let micStarted = false;
+
+async function pttDown() {
+  if (pttActive) return;
+  if (state === 'idle' || state === 'speaking' || state === 'processing') {
+    pttActive = true;
+    pttEl.classList.add('active');
+
+    // If Jarvis is speaking, interrupt
+    if (state === 'speaking' || isPlaying) {
+      const interruptStart = Date.now();
+
+      if (mode === 'relay') {
+        const audioEndMs = stopPlayback();
+        log(`Interrupting at ${audioEndMs}ms of audio heard`);
+
+        // stopPlayback() destroyed the AudioContext — worklet must be re-created
+        if (workletNode) { workletNode.disconnect(); workletNode = null; }
+        micStarted = false;
+
+        // Cancel ongoing response
+        relayWs.send(JSON.stringify({ type: 'cancel' }));
+
+        // Truncate to what was actually heard
+        if (currentItemId) {
+          relayWs.send(JSON.stringify({
+            type: 'truncate',
+            item_id: currentItemId,
+            audio_end_ms: audioEndMs,
+          }));
+        }
+
+        logMetric('Interruption latency', Date.now() - interruptStart);
+      } else {
+        // WebRTC interruption
+        if (dc?.readyState === 'open') {
+          dc.send(JSON.stringify({ type: 'response.cancel' }));
+          if (currentItemId) {
+            // In WebRTC mode we can't easily track exact playback cursor
+            // Use output_audio_buffer.clear instead
+            dc.send(JSON.stringify({ type: 'output_audio_buffer.clear' }));
+            // Still send truncate with best estimate
+            dc.send(JSON.stringify({
+              type: 'conversation.item.truncate',
+              item_id: currentItemId,
+              content_index: 0,
+              audio_end_ms: Math.floor(totalAudioBytesPlayed / 48) || 0,
+            }));
+          }
+          logMetric('Interruption latency', Date.now() - interruptStart);
+        }
+      }
+      resetPlaybackTracking();
+    }
+
+    setStatus('listening');
+
+    // Start mic (relay mode needs AudioWorklet for PCM16 capture)
+    if (mode === 'relay' && !micStarted) {
+      await startMic();
+      micStarted = true;
+    }
+
+    // WebRTC: unmute audio track
+    if (mode === 'webrtc' && micStream) {
+      micStream.getAudioTracks()[0].enabled = true;
+    }
+  }
+}
+
+function pttUp() {
+  if (!pttActive) return;
+  pttActive = false;
+  pttEl.classList.remove('active');
+  buttonReleaseTime = Date.now();
+
+  if (mode === 'relay' && relayWs?.readyState === WebSocket.OPEN) {
+    commitTimestamp = Date.now();
+    firstAudioTimestamp = 0;
+    relayWs.send(JSON.stringify({ type: 'commit' }));
+    setStatus('processing');
+    log('Audio committed, waiting for response...');
+  }
+
+  if (mode === 'webrtc') {
+    // Mute mic
+    if (micStream) micStream.getAudioTracks()[0].enabled = false;
+
+    // Commit + request response via data channel
+    if (dc?.readyState === 'open') {
+      commitTimestamp = Date.now();
+      firstAudioTimestamp = 0;
+      dc.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+      dc.send(JSON.stringify({ type: 'response.create' }));
+      setStatus('processing');
+      log('Audio committed (WebRTC), waiting for response...');
+    }
+  }
+}
+
+// ─── Event Listeners ─────────────────────────────────────────────────
+pttEl.addEventListener('mousedown', (e) => { e.preventDefault(); pttDown(); });
+pttEl.addEventListener('mouseup', (e) => { e.preventDefault(); pttUp(); });
+pttEl.addEventListener('mouseleave', (e) => { if (pttActive) pttUp(); });
+pttEl.addEventListener('touchstart', (e) => { e.preventDefault(); pttDown(); });
+pttEl.addEventListener('touchend', (e) => { e.preventDefault(); pttUp(); });
+
+// Spacebar as PTT
+document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.repeat) { e.preventDefault(); pttDown(); } });
+document.addEventListener('keyup', (e) => { if (e.code === 'Space') { e.preventDefault(); pttUp(); } });
+
+// Mode toggle
+document.getElementById('mode-relay').addEventListener('click', async () => {
+  if (mode === 'relay') return;
+  mode = 'relay';
+  document.getElementById('mode-relay').classList.add('active');
+  document.getElementById('mode-webrtc').classList.remove('active');
+  disconnectWebRTC();
+  setConnected(false);
+  micStarted = false;
+  log('Switched to Relay (WS) mode');
+  await connectRelay();
+});
+
+document.getElementById('mode-webrtc').addEventListener('click', async () => {
+  if (mode === 'webrtc') return;
+  mode = 'webrtc';
+  document.getElementById('mode-webrtc').classList.add('active');
+  document.getElementById('mode-relay').classList.remove('active');
+  disconnectRelay();
+  setConnected(false);
+  micStarted = false;
+  log('Switched to WebRTC mode');
+  await connectWebRTC();
+});
+
+// ─── Auto-connect on load ────────────────────────────────────────────
+log('Jarvis M0 Spike loaded');
+log('Default mode: Relay (WS)');
+connectRelay();
+
+</script>
+</body>
+</html>
