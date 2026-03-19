@@ -1,5 +1,9 @@
+import { AUDIO } from "@jarvis/shared";
 import type { ClientMessage, ServerMessage, SessionStatus } from "@jarvis/shared";
 import { useCallback, useRef, useState } from "react";
+
+/** OpenAI requires >=100ms; use 150ms for safety margin */
+const MIN_COMMIT_BYTES = AUDIO.BYTES_PER_MS * 150;
 import type { TranscriptTurn } from "../types.js";
 import { useAudioCapture } from "./useAudioCapture.js";
 import { useAudioPlayback } from "./useAudioPlayback.js";
@@ -28,6 +32,8 @@ export function useVoiceSession(): VoiceSession {
   const currentItemIdRef = useRef<string | null>(null);
   const currentAssistantTextRef = useRef("");
   const currentAssistantTurnIdRef = useRef<string | null>(null);
+  const pendingUserTurnIdRef = useRef<string | null>(null);
+  const audioBytesSentRef = useRef(0);
 
   const capture = useAudioCapture();
   const { play, stop: stopPlayback } = useAudioPlayback();
@@ -211,7 +217,9 @@ export function useVoiceSession(): VoiceSession {
 
     updateStatus("listening");
 
+    audioBytesSentRef.current = 0;
     const userTurnId = crypto.randomUUID();
+    pendingUserTurnIdRef.current = userTurnId;
     setTurns((prev) => [
       ...prev,
       { id: userTurnId, role: "user", text: "\u2026", timestamp: new Date() },
@@ -219,6 +227,7 @@ export function useVoiceSession(): VoiceSession {
 
     try {
       await capture.start((base64) => {
+        audioBytesSentRef.current += Math.floor((base64.length * 3) / 4);
         sendMessage({ type: "audio", data: base64 });
       });
     } catch (err) {
@@ -231,6 +240,19 @@ export function useVoiceSession(): VoiceSession {
   const stopListening = useCallback(() => {
     if (statusRef.current !== "listening") return;
     capture.stop();
+
+    if (audioBytesSentRef.current < MIN_COMMIT_BYTES) {
+      // Too short to commit — OpenAI requires >=100ms of audio
+      const turnId = pendingUserTurnIdRef.current;
+      if (turnId) {
+        setTurns((prev) => prev.filter((t) => t.id !== turnId));
+      }
+      pendingUserTurnIdRef.current = null;
+      updateStatus("connected");
+      return;
+    }
+
+    pendingUserTurnIdRef.current = null;
     sendMessage({ type: "commit" });
     updateStatus("processing");
     console.log(`[latency] Commit sent at ${Date.now()}`);
