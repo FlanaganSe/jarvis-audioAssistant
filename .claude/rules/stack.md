@@ -8,8 +8,8 @@ description: Technology choices and constraints.
 - **Backend**: Fastify
 - **Database**: PostgreSQL + pgvector (conversation memory, user data, semantic search) + Redis (session/cache)
 - **ORM**: Drizzle
-- **AI/LLM**: OpenAI Realtime API (`gpt-realtime-mini`); transport pending M0 evaluation (relay WS vs client WebRTC + server sideband)
-- **Audio**: Real-time audio streaming (Opus client↔server, PCM16 server↔OpenAI); transport architecture finalized in M0
+- **AI/LLM**: OpenAI Realtime API (`gpt-realtime-mini`) via WebSocket relay
+- **Audio**: WebSocket relay (PCM16 24kHz mono throughout for MVP; Opus client↔server is a later bandwidth optimization)
 - **GitHub**: Octokit (`@octokit/rest` + `@octokit/graphql`)
 - **Auth**: Custom JWT via `jose`
 - **Styling**: N/A (minimal companion UI)

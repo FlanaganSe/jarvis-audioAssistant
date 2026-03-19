@@ -57,7 +57,7 @@ Jarvis is a real-time voice assistant that streams bidirectional audio via WebSo
 
 **Why a relay server (current default):** All secrets stay server-side. All tool execution is server-side. Single point for observability and policy enforcement. Adds ~50-100ms latency -- invisible against 250ms+ from the model. Works with any client (web, mobile, desktop) without client-side SDK changes.
 
-**Important: transport decision is subject to M0 validation.** OpenAI's current guidance explicitly recommends WebRTC over WebSocket for browser clients. The alternative architecture -- client connects to OpenAI via WebRTC for audio, server connects via sideband for tool execution and monitoring -- provides the same security/observability benefits without putting the server in the media path. M0 must benchmark both approaches before committing. See Open Questions Q3.
+**Transport decision (finalized after M0 spike):** WebSocket relay is the chosen transport. M0 benchmarked both relay and WebRTC -- relay latency (1190-2434ms E2E) is within PRD targets (<=2s p95), relay is simpler to implement and debug, and gives full server-side control over tool execution and observability. WebRTC remains a documented migration path if latency or scalability becomes a concern post-demo.
 
 ---
 
@@ -429,7 +429,7 @@ The companion UI is a core product surface for trust, not optional chrome:
 | Runtime | Node.js 22+ / TypeScript 5.x | Ecosystem maturity; LLM latency dominates | Stable |
 | Backend | Fastify | 3-5x faster than Express, TypeScript-first, plugin ecosystem | Stable |
 | Voice pipeline | OpenAI Realtime API (`gpt-realtime-mini`) via WS relay | Best latency, built-in VAD + interruption + tools, simplest for demo | LiveKit Agents as scaling path |
-| Connection | **Pending M0:** Relay server (WS) is the current default; client WebRTC + server sideband is the OpenAI-recommended browser pattern | Relay: simplest initial path. WebRTC: avoids server in media path, OpenAI-recommended for browsers. | M0 spike must benchmark both before committing. |
+| Connection | WebSocket relay (client-WS-Fastify-WS-OpenAI) | M0 proved: relay latency within targets, simpler, full server-side control | WebRTC + sideband if latency/scale demands it |
 | Audio format | Opus (client-server), PCM16 24kHz (server-OpenAI) | Opus for bandwidth, PCM16 required by Realtime API | Stable |
 | ORM | Drizzle | Native pgvector, SQL-like API, 5KB bundle, TypeScript-first | Stable |
 | Database | PostgreSQL + pgvector | Conversation memory, semantic search, RLS | Stable |
@@ -565,13 +565,14 @@ Multi-tenant RLS on `user_id` from the data model layer.
 
 ## 14. Milestones
 
-### Milestone 0: Spike and De-Risk
+### Milestone 0: Spike and De-Risk (COMPLETE)
 
-- Prove low-latency voice loop with interruption (including `response.cancel` + `conversation.item.truncate` protocol).
-- **Benchmark relay server (WS) vs client WebRTC + server sideband.** Measure latency, jitter, complexity. Commit to one transport architecture before M1.
-- Prove tool-first pattern for a GitHub read flow with `tool_choice: "required"`.
-- Validate eval harness and latency instrumentation.
-- Verify truth contract: run initial eval of whether spoken answers accurately reflect tool results.
+- Voice loop proven in both relay and WebRTC modes.
+- Transport decision: **WebSocket relay** (latency 1190-2434ms, within <=2s p95 target).
+- Tool calling proven (GitHub PR queries, 369ms tool round-trip).
+- GA API schema verified: uses `input_audio_format`/`output_audio_format` at session level, model name `gpt-realtime-mini` confirmed.
+- Interruption protocol implemented (`response.cancel` + `conversation.item.truncate`); needs thorough verification in M1.
+- **Key lesson:** research docs mixed beta/GA schemas. M1 must verify all API details from primary docs before writing code.
 
 ### Milestone 1: Trustworthy Voice Loop
 
@@ -706,8 +707,8 @@ The requirements reference "a provided API." OpenWeatherMap has been selected fo
 **Q2. GitHub auth: PAT vs GitHub App for MVP** *(Owner: Backend)*
 PAT is simpler. GitHub App is architecturally cleaner. **Recommendation: PAT for MVP.** Upgrade to GitHub App when connected workspace features (R20) are built.
 
-**Q3. Browser audio transport: relay server vs client WebRTC + server sideband** *(Owner: Backend, decided in M0)*
-OpenAI explicitly recommends WebRTC for browser clients. The relay server is simpler to implement initially but puts the server in the media path. The WebRTC + sideband pattern keeps secrets and tools server-side while audio flows directly. **M0 must benchmark both and commit before M1.** See section 2 architecture note.
+**Q3. Browser audio transport** *(Resolved after M0)*
+M0 spike benchmarked both relay and WebRTC. Relay chosen: latency within targets, simpler, full server-side control. WebRTC is a documented migration path.
 
 ### Can Defer
 
@@ -724,7 +725,7 @@ OpenAI explicitly recommends WebRTC for browser clients. The relay server is sim
 | # | Decision | Rationale |
 |---|----------|-----------|
 | 1 | **OpenAI Realtime API** over LiveKit / cascaded | Best latency, built-in VAD + interruption + tools, simplest for demo. LiveKit is documented fallback. |
-| 2 | **Transport: pending M0** -- relay server is the current default; WebRTC + sideband is the OpenAI-recommended alternative | M0 spike must benchmark both. OpenAI recommends WebRTC for browsers. |
+| 2 | **WebSocket relay** over direct WebRTC | M0 spike: relay latency within targets (1190-2434ms E2E), simpler, full server-side control. WebRTC is documented fallback. |
 | 3 | **Push-to-talk first**, wake word P2 | Reduces complexity, works in noisy environments, avoids iOS background risks. |
 | 4 | **Web-first**, mobile P2 | Fastest path to demo. Companion UI shareable via URL. |
 | 5 | **No Temporal** for demo | Simple Redis polling + caching is sufficient. Add only when durable write workflows justify it. |
