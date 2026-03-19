@@ -46,12 +46,24 @@ describe("loadConfig", () => {
     expect(config.port).toBe(3001);
   });
 
-  it("auto-generates JWT_SECRET when not set", () => {
+  it("auto-generates JWT_SECRET when not set in dev", () => {
     process.env.JWT_SECRET = undefined;
+    process.env.NODE_ENV = undefined;
     const config = loadConfig();
     expect(config.jwtSecret).toBeTruthy();
     expect(config.jwtSecret.length).toBeGreaterThan(0);
-    // loadConfig mutates process.env
     expect(process.env.JWT_SECRET).toBe(config.jwtSecret);
+  });
+
+  it("throws when JWT_SECRET is missing in production", () => {
+    process.env.JWT_SECRET = undefined;
+    process.env.NODE_ENV = "production";
+    expect(() => loadConfig()).toThrow("JWT_SECRET is required in production");
+  });
+
+  it("defaults REDIS_URL to localhost when not set", () => {
+    process.env.REDIS_URL = undefined;
+    const config = loadConfig();
+    expect(config.redisUrl).toBe("redis://localhost:6379");
   });
 });

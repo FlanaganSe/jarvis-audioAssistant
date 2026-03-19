@@ -95,6 +95,14 @@ export function createRelaySession(clientWs: WsType, config: Config, session: Se
     headers: { Authorization: `Bearer ${config.openaiApiKey}` },
   });
 
+  // Keepalive pings to prevent Railway's ~60s TCP idle timeout
+  const PING_INTERVAL_MS = 25_000;
+  const pingInterval = setInterval(() => {
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.ping();
+    }
+  }, PING_INTERVAL_MS);
+
   openai.on("open", () => {
     log("OpenAI WS connected, building system prompt");
     void buildSystemPrompt(session.userId).then((instructions) => {
@@ -408,6 +416,7 @@ export function createRelaySession(clientWs: WsType, config: Config, session: Se
 
   clientWs.on("close", () => {
     log("Client disconnected");
+    clearInterval(pingInterval);
     if (openai.readyState === WebSocket.OPEN) {
       openai.close();
     }
