@@ -1,6 +1,6 @@
 import { AUDIO } from "@jarvis/shared";
 import type { ClientMessage, DisplayStatus, ServerMessage } from "@jarvis/shared";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /** OpenAI requires >=100ms; use 150ms for safety margin */
 const MIN_COMMIT_BYTES = AUDIO.BYTES_PER_MS * 150;
@@ -14,6 +14,7 @@ interface VoiceSession {
   connectedAt: Date | null;
   error: string | null;
   userId: string | null;
+  authToken: string | null;
   audioLevel: number;
   connect: () => void;
   disconnect: () => void;
@@ -27,9 +28,11 @@ export function useVoiceSession(): VoiceSession {
   const [connectedAt, setConnectedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(() => localStorage.getItem("jarvis_userId"));
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const statusRef = useRef<DisplayStatus>("disconnected");
+  const autoConnectAttemptedRef = useRef(false);
   const currentItemIdRef = useRef<string | null>(null);
   const currentAssistantTextRef = useRef("");
   const currentAssistantTurnIdRef = useRef<string | null>(null);
@@ -65,28 +68,26 @@ export function useVoiceSession(): VoiceSession {
     setError(null);
 
     try {
-      // Ensure persistent user identity
-      let userId = localStorage.getItem("jarvis_userId");
-      if (!userId) {
-        const regRes = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (!regRes.ok) throw new Error("Failed to register user");
-        const regData = await regRes.json();
-        userId = regData.userId as string;
-        localStorage.setItem("jarvis_userId", userId);
-        setUserId(userId);
-      }
+      const existingUserId = localStorage.getItem("jarvis_userId");
+      const regRes = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(existingUserId ? { userId: existingUserId } : {}),
+      });
+      if (!regRes.ok) throw new Error("Failed to register demo user");
+      const regData = await regRes.json();
+      const nextUserId = regData.userId as string;
+      localStorage.setItem("jarvis_userId", nextUserId);
+      setUserId(nextUserId);
 
       const res = await fetch("/api/auth/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId: nextUserId }),
       });
       if (!res.ok) throw new Error("Failed to get auth token");
       const { token } = await res.json();
+      setAuthToken(token as string);
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const ws = new WebSocket(`${protocol}//${window.location.host}/ws/relay?token=${token}`);
@@ -281,8 +282,10 @@ export function useVoiceSession(): VoiceSession {
       ws.onclose = (event) => {
         if (statusRef.current !== "disconnected") {
           updateStatus("disconnected");
+          setConnectedAt(null);
           if (event.code === 4001) {
             setError("Session expired — please reconnect");
+            setAuthToken(null);
           } else if (event.code !== 1000) {
             setError("Connection lost");
           }
@@ -305,9 +308,28 @@ export function useVoiceSession(): VoiceSession {
     stopPlayback();
     wsRef.current?.close(1000, "User ended session");
     wsRef.current = null;
+    setAuthToken(null);
     updateStatus("disconnected");
     setConnectedAt(null);
   }, [updateStatus, capture, stopPlayback]);
+
+  useEffect(() => {
+    if (autoConnectAttemptedRef.current) {
+      return;
+    }
+
+    autoConnectAttemptedRef.current = true;
+    void connect();
+  }, [connect]);
+
+  useEffect(() => {
+    return () => {
+      capture.stop();
+      stopPlayback();
+      wsRef.current?.close(1000, "Component unmounted");
+      wsRef.current = null;
+    };
+  }, [capture, stopPlayback]);
 
   const startListening = useCallback(async () => {
     if (statusRef.current === "speaking") {
@@ -382,6 +404,7 @@ export function useVoiceSession(): VoiceSession {
     connectedAt,
     error,
     userId,
+    authToken,
     audioLevel: capture.level,
     connect,
     disconnect,

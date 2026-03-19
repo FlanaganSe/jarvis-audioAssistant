@@ -29,7 +29,6 @@ export type ClientMessage =
 export type ServerMessage =
   | { type: "audio"; data: string }
   | { type: "transcript"; role: "user" | "assistant"; text: string; delta: boolean }
-  | { type: "status"; status: SessionStatus }
   | { type: "response.started"; itemId: string }
   | { type: "response.done" }
   | { type: "turn.started" }

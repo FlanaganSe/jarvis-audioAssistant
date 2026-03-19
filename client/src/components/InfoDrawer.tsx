@@ -10,55 +10,79 @@ interface RecentSession {
 }
 
 interface InfoDrawerProps {
-  userId: string | null;
+  authToken: string | null;
   open: boolean;
   onClose: () => void;
 }
 
 type Tab = "preferences" | "sessions";
 
-export function InfoDrawer({ userId, open, onClose }: InfoDrawerProps): React.JSX.Element | null {
+export function InfoDrawer({
+  authToken,
+  open,
+  onClose,
+}: InfoDrawerProps): React.JSX.Element | null {
   const [tab, setTab] = useState<Tab>("preferences");
   const [preferences, setPreferences] = useState<string[]>([]);
   const [sessions, setSessions] = useState<RecentSession[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchPreferences = useCallback(async () => {
-    if (!userId) return;
-    try {
-      const res = await fetch(`/api/preferences?userId=${userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPreferences(data.preferences ?? []);
-      }
-    } catch {
-      /* ignore */
+    if (!authToken) return;
+    const res = await fetch("/api/preferences", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) {
+      throw new Error("Failed to load preferences");
     }
-  }, [userId]);
+
+    const data = await res.json();
+    setPreferences(data.preferences ?? []);
+  }, [authToken]);
 
   const fetchSessions = useCallback(async () => {
-    if (!userId) return;
-    try {
-      const res = await fetch(`/api/sessions/recent?userId=${userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSessions(data.sessions ?? []);
-      }
-    } catch {
-      /* ignore */
+    if (!authToken) return;
+    const res = await fetch("/api/sessions/recent", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) {
+      throw new Error("Failed to load session history");
     }
-  }, [userId]);
+
+    const data = await res.json();
+    setSessions(data.sessions ?? []);
+  }, [authToken]);
 
   useEffect(() => {
     if (!open) return;
-    void fetchPreferences();
-    void fetchSessions();
-  }, [open, fetchPreferences, fetchSessions]);
+    if (!authToken) {
+      setPreferences([]);
+      setSessions([]);
+      setLoadError(null);
+      return;
+    }
+
+    setLoading(true);
+    setLoadError(null);
+
+    void Promise.all([fetchPreferences(), fetchSessions()])
+      .catch((err: unknown) => {
+        setLoadError(err instanceof Error ? err.message : "Failed to load side panel data");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [open, authToken, fetchPreferences, fetchSessions]);
 
   const handleDeletePref = useCallback(
     async (index: number) => {
-      if (!userId) return;
+      if (!authToken) return;
       try {
-        const res = await fetch(`/api/preferences/${index}?userId=${userId}`, { method: "DELETE" });
+        const res = await fetch(`/api/preferences/${index}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
         if (res.ok) {
           const data = await res.json();
           setPreferences(data.preferences ?? []);
@@ -67,7 +91,7 @@ export function InfoDrawer({ userId, open, onClose }: InfoDrawerProps): React.JS
         /* ignore */
       }
     },
-    [userId],
+    [authToken],
   );
 
   if (!open) return null;
@@ -138,7 +162,23 @@ export function InfoDrawer({ userId, open, onClose }: InfoDrawerProps): React.JS
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: spacing.lg }}>
+        {!authToken && (
+          <p style={{ color: colors.textMuted, fontSize: fontSizes.sm }}>
+            Connect to Jarvis to load preferences and recent sessions.
+          </p>
+        )}
+
+        {authToken && loading && (
+          <p style={{ color: colors.textMuted, fontSize: fontSizes.sm }}>Loading side panel…</p>
+        )}
+
+        {authToken && loadError && (
+          <p style={{ color: colors.error, fontSize: fontSizes.sm }}>{loadError}</p>
+        )}
+
         {tab === "preferences" &&
+          authToken &&
+          !loading &&
           (preferences.length === 0 ? (
             <p style={{ color: colors.textMuted, fontSize: fontSizes.sm }}>
               No preferences set. Tell Jarvis "remember that..." to add one.
@@ -180,6 +220,8 @@ export function InfoDrawer({ userId, open, onClose }: InfoDrawerProps): React.JS
           ))}
 
         {tab === "sessions" &&
+          authToken &&
+          !loading &&
           (sessions.length === 0 ? (
             <p style={{ color: colors.textMuted, fontSize: fontSizes.sm }}>No past sessions.</p>
           ) : (

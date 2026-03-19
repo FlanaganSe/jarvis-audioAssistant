@@ -11,6 +11,7 @@ import { registerSessionsRoute } from "./routes/sessions.js";
 import { registerWsRoute } from "./routes/ws.js";
 import { connectRedis, disconnectRedis } from "./services/cache.js";
 import { startIdleChecker } from "./services/idle.js";
+import { waitForPendingSummaryJobs } from "./services/summary-jobs.js";
 import { startWeatherPoller, stopWeatherPoller } from "./services/weather-poller.js";
 import { registerAllTools } from "./tools/index.js";
 
@@ -36,8 +37,8 @@ await fastify.register(websocket);
 
 registerHealthRoute(fastify);
 registerAuthRoute(fastify, config);
-registerPreferencesRoute(fastify);
-registerSessionsRoute(fastify);
+registerPreferencesRoute(fastify, config);
+registerSessionsRoute(fastify, config);
 registerWsRoute(fastify, config);
 
 const cleanup = startIdleChecker(fastify.log);
@@ -45,7 +46,18 @@ const cleanup = startIdleChecker(fastify.log);
 const shutdown = async () => {
   cleanup();
   stopWeatherPoller();
-  await Promise.allSettled([disconnectRedis(), disconnectDb(), fastify.close()]);
+  await Promise.allSettled([fastify.close()]);
+
+  const summaryWait = await waitForPendingSummaryJobs(5_000);
+  if (summaryWait.pending > 0) {
+    const message = summaryWait.timedOut
+      ? "Timed out waiting for session summaries to finish"
+      : "Finished waiting for in-flight session summaries";
+
+    fastify.log[summaryWait.timedOut ? "warn" : "info"]({ pending: summaryWait.pending }, message);
+  }
+
+  await Promise.allSettled([disconnectRedis(), disconnectDb()]);
   process.exit(0);
 };
 

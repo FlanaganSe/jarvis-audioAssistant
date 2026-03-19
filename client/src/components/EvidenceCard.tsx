@@ -1,5 +1,5 @@
 import type { Evidence } from "@jarvis/shared";
-import { colors, fontSizes, radii, spacing } from "../styles.js";
+import { colors, fontSizes, fonts, radii, spacing } from "../styles.js";
 
 interface EvidenceCardProps {
   evidence: Evidence;
@@ -18,16 +18,19 @@ function formatAge(sec: number): string {
   return `${min}m ago`;
 }
 
-function sourceIcon(source: string): string {
-  if (source === "github") return "\u{1F4E6}"; // package
-  if (source === "openweathermap") return "\u{1F321}"; // thermometer
-  if (source === "memory") return "\u{1F4AD}"; // thought bubble
-  return "\u{1F50D}"; // magnifying glass
+function sourceLabel(source: string): string {
+  if (source === "github") return "GitHub";
+  if (source === "github+analysis") return "GitHub + AI";
+  if (source === "github+memory") return "GitHub + Memory";
+  if (source === "openweathermap") return "Weather";
+  if (source === "memory") return "Memory";
+  return source;
 }
 
 export function EvidenceCard({ evidence }: EvidenceCardProps): React.JSX.Element {
   return (
     <div
+      title={`${evidence.citationRef} • fetched ${new Date(evidence.fetchedAt).toLocaleString()}`}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -40,8 +43,17 @@ export function EvidenceCard({ evidence }: EvidenceCardProps): React.JSX.Element
         color: colors.textSecondary,
       }}
     >
-      <span>{sourceIcon(evidence.source)}</span>
-      <span>{evidence.entity}</span>
+      <span
+        style={{
+          padding: `1px ${spacing.sm}px`,
+          borderRadius: radii.sm,
+          background: colors.accentMuted,
+          color: colors.accent,
+        }}
+      >
+        {sourceLabel(evidence.source)}
+      </span>
+      <span style={{ fontFamily: fonts.mono }}>{evidence.entity}</span>
       <span
         style={{
           width: 6,

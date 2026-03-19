@@ -3,6 +3,7 @@ import { colors, fontSizes, radii, spacing } from "../styles.js";
 
 interface SessionControlsProps {
   status: DisplayStatus;
+  connectedAt: Date | null;
   turnCount: number;
   onDisconnect: () => void;
   onReconnect: () => void;
@@ -20,12 +21,14 @@ const btnStyle: React.CSSProperties = {
 
 export function SessionControls({
   status,
+  connectedAt,
   turnCount,
   onDisconnect,
   onReconnect,
 }: SessionControlsProps): React.JSX.Element {
   const isConnected = status !== "disconnected" && status !== "error" && status !== "idle";
   const showReconnect = status === "disconnected" || status === "error";
+  const reconnectLabel = connectedAt ? "Reconnect" : "Connect";
 
   return (
     <div
@@ -44,7 +47,7 @@ export function SessionControls({
       </span>
       {showReconnect && (
         <button type="button" onClick={onReconnect} style={{ ...btnStyle, color: colors.accent }}>
-          Reconnect
+          {reconnectLabel}
         </button>
       )}
       {isConnected && (

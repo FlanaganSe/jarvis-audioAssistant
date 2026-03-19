@@ -22,7 +22,7 @@ export function registerAuthRoute(fastify: FastifyInstance, config: Config): voi
       }
     }
 
-    // Create a new demo user
+    // Create a new anonymous demo user for the local session
     const email = `demo-${crypto.randomUUID()}@jarvis.local`;
     const [row] = await db
       .insert(users)
@@ -35,6 +35,20 @@ export function registerAuthRoute(fastify: FastifyInstance, config: Config): voi
 
   fastify.post("/api/auth/token", async (request, reply) => {
     const body = request.body as { userId?: string } | undefined;
+
+    if (body?.userId) {
+      const db = getDb();
+      const [user] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, body.userId))
+        .limit(1);
+
+      if (!user) {
+        return reply.status(404).send({ error: "User not found" });
+      }
+    }
+
     const token = await signToken(config.jwtSecret, body?.userId);
     return reply.send({ token });
   });

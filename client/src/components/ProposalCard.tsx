@@ -20,7 +20,6 @@ const COMPLEXITY_COLORS: Record<string, string> = {
 
 export function ProposalCard({ proposal }: ProposalCardProps): React.JSX.Element | null {
   const [dismissed, setDismissed] = useState(false);
-  const [approveMsg, setApproveMsg] = useState(false);
 
   if (dismissed) return null;
 
@@ -50,7 +49,7 @@ export function ProposalCard({ proposal }: ProposalCardProps): React.JSX.Element
           letterSpacing: 0.5,
         }}
       >
-        Draft Proposal: {label}
+        Read-Only Proposal: {label}
       </div>
       <div
         style={{
@@ -64,6 +63,17 @@ export function ProposalCard({ proposal }: ProposalCardProps): React.JSX.Element
       </div>
       <div style={{ fontSize: fontSizes.xs, color: colors.textMuted, marginBottom: spacing.md }}>
         {issueRef}
+      </div>
+      <div
+        style={{
+          fontSize: fontSizes.xs,
+          color: colors.textSecondary,
+          marginBottom: spacing.md,
+          lineHeight: 1.5,
+        }}
+      >
+        This is a preview for review only. Jarvis can draft proposals in this demo, but it cannot
+        apply GitHub changes or post comments.
       </div>
 
       {/* Content based on type */}
@@ -83,19 +93,19 @@ export function ProposalCard({ proposal }: ProposalCardProps): React.JSX.Element
       >
         <button
           type="button"
-          onClick={() => setApproveMsg(true)}
+          disabled
           style={{
             padding: `${spacing.xs}px ${spacing.md}px`,
             borderRadius: radii.sm,
             border: "none",
-            background: approveMsg ? colors.surface : colors.success,
-            color: approveMsg ? colors.textMuted : "#fff",
+            background: colors.surface,
+            color: colors.textMuted,
             fontSize: fontSizes.sm,
             fontWeight: 600,
-            cursor: approveMsg ? "default" : "pointer",
+            cursor: "not-allowed",
           }}
         >
-          {approveMsg ? "Coming soon" : "Approve"}
+          Approval Flow Coming Soon
         </button>
         <button
           type="button"
@@ -113,19 +123,6 @@ export function ProposalCard({ proposal }: ProposalCardProps): React.JSX.Element
           Dismiss
         </button>
       </div>
-      {approveMsg && (
-        <div
-          style={{
-            fontSize: fontSizes.xs,
-            color: colors.textMuted,
-            marginTop: spacing.xs,
-            fontStyle: "italic",
-          }}
-        >
-          Approval workflows are coming soon. In a future version, clicking Approve would execute
-          this action with your permission.
-        </div>
-      )}
     </div>
   );
 }

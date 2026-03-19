@@ -1,3 +1,4 @@
+import type { DisplayStatus } from "@jarvis/shared";
 import { useEffect, useRef } from "react";
 import { colors, fontSizes, radii, spacing } from "../styles.js";
 import type { TranscriptTurn } from "../types.js";
@@ -7,9 +8,39 @@ import { ToolCallIndicator } from "./ToolCallIndicator.js";
 
 interface TranscriptProps {
   turns: readonly TranscriptTurn[];
+  status: DisplayStatus;
+  error: string | null;
 }
 
-export function Transcript({ turns }: TranscriptProps): React.JSX.Element {
+function emptyStateCopy(status: DisplayStatus, error: string | null): string {
+  if (status === "connecting") {
+    return "Connecting to Jarvis…";
+  }
+
+  if (status === "listening") {
+    return "Listening… release to send your question.";
+  }
+
+  if (status === "processing") {
+    return "Checking live tools and preparing a grounded answer…";
+  }
+
+  if (status === "speaking") {
+    return "Jarvis is responding. Press and hold to interrupt.";
+  }
+
+  if (status === "error") {
+    return error ?? "Connection error. Reconnect to try again.";
+  }
+
+  if (status === "disconnected") {
+    return error ?? "Session offline. Connect to start asking about GitHub, weather, or memory.";
+  }
+
+  return "Press and hold to ask about a public GitHub repo, current weather, or prior conversations.";
+}
+
+export function Transcript({ turns, status, error }: TranscriptProps): React.JSX.Element {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const turnsLength = turns.length;
@@ -30,7 +61,7 @@ export function Transcript({ turns }: TranscriptProps): React.JSX.Element {
     >
       {turns.length === 0 && (
         <p style={{ color: colors.textMuted, textAlign: "center", padding: spacing.xxl }}>
-          Press the button and speak to start a conversation.
+          {emptyStateCopy(status, error)}
         </p>
       )}
       {turns.map((turn) => {

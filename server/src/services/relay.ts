@@ -10,6 +10,7 @@ import type { ToolContext } from "../tools/types.js";
 import type { SessionState } from "../types.js";
 import { endDbSession, saveMessage } from "./persistence.js";
 import { sessionManager } from "./session.js";
+import { queueSummaryJob } from "./summary-jobs.js";
 import { generateSessionSummary } from "./summary.js";
 import { toolRegistry } from "./tool-registry.js";
 
@@ -413,7 +414,7 @@ export function createRelaySession(clientWs: WsType, config: Config, session: Se
     // End the DB session and generate summary async
     if (session.dbSessionId) {
       const db = getDb();
-      void (async () => {
+      const summaryJob = (async () => {
         try {
           await endDbSession(db, session.dbSessionId);
           await generateSessionSummary(db, session.dbSessionId, config.openaiApiKey);
@@ -422,6 +423,8 @@ export function createRelaySession(clientWs: WsType, config: Config, session: Se
           log(`Session summary failed: ${err}`);
         }
       })();
+
+      queueSummaryJob(summaryJob);
     }
   });
 }

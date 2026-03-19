@@ -6,9 +6,7 @@
       "Bash(pnpm *)",
       "Bash(npx tsc *)",
       "Bash(npx vitest *)",
-      "Bash(node *)"
-    ],
-    "ask": [
+      "Bash(node *)",
       "Edit",
       "Write",
       "Bash(git add *)",
@@ -16,6 +14,8 @@
       "Bash(curl *)",
       "Bash(cd *)",
       "Bash(docker *)"
+    ],
+    "ask": [
     ],
     "deny": [
       "Read(**/.env*)",

@@ -1,19 +1,23 @@
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import type { Config } from "../config.js";
 import { getDb } from "../db/index.js";
 import { users } from "../db/schema.js";
+import { authenticateBearerToken } from "../services/http-auth.js";
 import { getPrefsArray } from "../tools/preferences.js";
 
-export function registerPreferencesRoute(fastify: FastifyInstance): void {
+export function registerPreferencesRoute(fastify: FastifyInstance, config: Config): void {
   fastify.get("/api/preferences", async (request, reply) => {
-    const { userId } = request.query as { userId?: string };
-    if (!userId) return reply.status(400).send({ error: "userId required" });
+    const payload = await authenticateBearerToken(request.headers.authorization, config.jwtSecret);
+    if (!payload?.userId) {
+      return reply.status(401).send({ error: "Missing or invalid bearer token" });
+    }
 
     const db = getDb();
     const [user] = await db
       .select({ preferences: users.preferences })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(eq(users.id, payload.userId))
       .limit(1);
 
     return reply.send({ preferences: user ? getPrefsArray(user.preferences) : [] });
@@ -21,8 +25,10 @@ export function registerPreferencesRoute(fastify: FastifyInstance): void {
 
   fastify.delete("/api/preferences/:index", async (request, reply) => {
     const { index } = request.params as { index: string };
-    const { userId } = request.query as { userId?: string };
-    if (!userId) return reply.status(400).send({ error: "userId required" });
+    const payload = await authenticateBearerToken(request.headers.authorization, config.jwtSecret);
+    if (!payload?.userId) {
+      return reply.status(401).send({ error: "Missing or invalid bearer token" });
+    }
 
     const idx = Number.parseInt(index, 10);
     if (Number.isNaN(idx)) return reply.status(400).send({ error: "Invalid index" });
@@ -31,7 +37,7 @@ export function registerPreferencesRoute(fastify: FastifyInstance): void {
     const [user] = await db
       .select({ preferences: users.preferences })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(eq(users.id, payload.userId))
       .limit(1);
 
     if (!user) return reply.status(404).send({ error: "User not found" });
@@ -41,7 +47,7 @@ export function registerPreferencesRoute(fastify: FastifyInstance): void {
       return reply.status(400).send({ error: "Index out of range" });
 
     const removed = prefs.splice(idx, 1)[0];
-    await db.update(users).set({ preferences: prefs }).where(eq(users.id, userId));
+    await db.update(users).set({ preferences: prefs }).where(eq(users.id, payload.userId));
 
     return reply.send({ removed, preferences: prefs });
   });

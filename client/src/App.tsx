@@ -49,7 +49,32 @@ export function App(): React.JSX.Element {
         </button>
       </div>
 
-      <Transcript turns={session.turns} />
+      <div
+        style={{
+          marginTop: spacing.lg,
+          padding: spacing.lg,
+          borderRadius: radii.lg,
+          background: colors.surface,
+          border: `1px solid ${colors.border}`,
+        }}
+      >
+        <div
+          style={{
+            color: colors.textPrimary,
+            fontSize: fontSizes.lg,
+            fontWeight: 600,
+            marginBottom: spacing.xs,
+          }}
+        >
+          Operational voice copilot for live repo and field questions
+        </div>
+        <p style={{ color: colors.textSecondary, fontSize: fontSizes.sm, lineHeight: 1.6 }}>
+          Ask about a public GitHub repo, current weather, or your recent conversations. Jarvis is
+          designed to answer from tool evidence or refuse when it cannot verify a claim.
+        </p>
+      </div>
+
+      <Transcript turns={session.turns} status={session.status} error={session.error} />
 
       <PushToTalkButton
         status={session.status}
@@ -60,12 +85,17 @@ export function App(): React.JSX.Element {
 
       <SessionControls
         status={session.status}
+        connectedAt={session.connectedAt}
         turnCount={session.turns.length}
         onDisconnect={session.disconnect}
         onReconnect={session.connect}
       />
 
-      <InfoDrawer userId={session.userId} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <InfoDrawer
+        authToken={session.authToken}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      />
     </div>
   );
 }

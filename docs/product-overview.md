@@ -173,7 +173,7 @@ Tools self-register during server boot. Each tool is a `ToolDefinition` with a n
 
 ### Session lifecycle
 
-1. **Connect**: client fetches JWT via `/api/auth/token`, opens WebSocket to `/ws/relay`.
+1. **Connect**: client registers or reuses a demo user, fetches a JWT, then opens WebSocket to `/ws/relay`.
 2. **Handshake**: server verifies JWT, creates in-memory `SessionState`, creates DB session row, opens a second WebSocket to OpenAI Realtime API, sends `session.update` with system prompt + tool definitions.
 3. **Turns**: audio flows bidirectionally. Each commit increments `turnCount` and touches `lastActivityAt`.
 4. **Idle timeout**: background checker closes sessions idle >10 minutes.
@@ -181,7 +181,7 @@ Tools self-register during server boot. Each tool is a `ToolDefinition` with a n
 
 ### Proposals
 
-A read-only pattern for agentic actions. The `github_propose_action` tool analyzes a GitHub issue and generates a structured plan (fix plan, PR outline, or comment draft) using GPT-4o-mini. The result is sent to the client as a `proposal` message, rendered as a card with details and approve/dismiss buttons. Approval is not yet implemented — this is the hook for future write-action workflows.
+A read-only pattern for agentic actions. The `github_propose_action` tool analyzes a GitHub issue and generates a structured plan (fix plan, PR outline, or comment draft) using GPT-4o-mini. The result is sent to the client as a `proposal` message, rendered as a review card. Approval execution is intentionally not implemented yet — this is the hook for future write-action workflows.
 
 ## Key patterns and conventions
 
@@ -236,9 +236,9 @@ Used exclusively for weather data caching. Keys follow `weather:<city>` with 180
 | GET | `/api/health` | None | Liveness check |
 | POST | `/api/auth/register` | None | Create demo user, returns `userId` |
 | POST | `/api/auth/token` | None | Exchange `userId` for JWT |
-| GET | `/api/preferences?userId=` | None (demo) | List user preferences |
-| DELETE | `/api/preferences/:index?userId=` | None (demo) | Remove preference by index |
-| GET | `/api/sessions/recent?userId=` | None (demo) | Recent sessions with summaries |
+| GET | `/api/preferences` | Bearer JWT | List user preferences |
+| DELETE | `/api/preferences/:index` | Bearer JWT | Remove preference by index |
+| GET | `/api/sessions/recent` | Bearer JWT | Recent sessions with summaries |
 
 ### WebSocket
 

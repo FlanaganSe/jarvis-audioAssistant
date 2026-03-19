@@ -1,15 +1,15 @@
 import type { DisplayStatus } from "@jarvis/shared";
 import { colors, fontSizes, spacing } from "../styles.js";
 
-const STATUS_COLORS: Record<DisplayStatus, string> = {
-  idle: colors.textMuted,
-  connecting: colors.warning,
-  connected: colors.success,
-  listening: colors.error,
-  processing: colors.warning,
-  speaking: colors.accent,
-  disconnected: colors.textMuted,
-  error: colors.error,
+const STATUS_META: Record<DisplayStatus, { color: string; label: string }> = {
+  idle: { color: colors.textMuted, label: "Idle" },
+  connecting: { color: colors.warning, label: "Connecting" },
+  connected: { color: colors.success, label: "Ready" },
+  listening: { color: colors.error, label: "Listening" },
+  processing: { color: colors.warning, label: "Checking tools" },
+  speaking: { color: colors.accent, label: "Responding" },
+  disconnected: { color: colors.textMuted, label: "Offline" },
+  error: { color: colors.error, label: "Error" },
 };
 
 interface StatusBarProps {
@@ -19,7 +19,7 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ status, connectedAt, error }: StatusBarProps): React.JSX.Element {
-  const color = STATUS_COLORS[status] ?? colors.textMuted;
+  const meta = STATUS_META[status] ?? STATUS_META.disconnected;
 
   return (
     <div
@@ -46,15 +46,15 @@ export function StatusBar({ status, connectedAt, error }: StatusBarProps): React
           width: 8,
           height: 8,
           borderRadius: "50%",
-          background: color,
+          background: meta.color,
           marginLeft: spacing.xs,
-          boxShadow: `0 0 6px ${color}`,
+          boxShadow: `0 0 6px ${meta.color}`,
         }}
       />
-      <span style={{ fontSize: fontSizes.sm, color: colors.textSecondary }}>{status}</span>
+      <span style={{ fontSize: fontSizes.sm, color: colors.textSecondary }}>{meta.label}</span>
       {connectedAt && (
         <span style={{ marginLeft: "auto", fontSize: fontSizes.xs, color: colors.textMuted }}>
-          {connectedAt.toLocaleTimeString()}
+          Connected {connectedAt.toLocaleTimeString()}
         </span>
       )}
       {error && (
