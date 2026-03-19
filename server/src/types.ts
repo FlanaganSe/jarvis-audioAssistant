@@ -3,6 +3,7 @@ import type { WebSocket } from "ws";
 export interface SessionState {
   readonly sessionId: string;
   dbSessionId: string;
+  userId?: string;
   readonly connectedAt: Date;
   lastActivityAt: Date;
   turnCount: number;
@@ -12,6 +13,7 @@ export interface SessionState {
 
 export interface TokenPayload {
   readonly sessionId: string;
+  readonly userId?: string;
   readonly iat: number;
   readonly exp: number;
 }

@@ -26,15 +26,20 @@ export function registerWsRoute(fastify: FastifyInstance, config: Config): void 
     const connectionId = crypto.randomUUID();
     const session = sessionManager.create(connectionId);
 
+    // Associate userId from JWT
+    if (payload.userId) {
+      session.userId = payload.userId;
+    }
+
     // Create a DB session row
     try {
       const db = getDb();
-      session.dbSessionId = await createDbSession(db);
+      session.dbSessionId = await createDbSession(db, payload.userId);
     } catch (err) {
       fastify.log.warn({ connectionId, err }, "Failed to create DB session (non-fatal)");
     }
 
-    fastify.log.info({ connectionId }, "WebSocket session started");
+    fastify.log.info({ connectionId, userId: payload.userId }, "WebSocket session started");
 
     createRelaySession(socket, config, session);
 

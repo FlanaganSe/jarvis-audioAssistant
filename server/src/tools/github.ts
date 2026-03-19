@@ -53,7 +53,7 @@ function createListOpenPrs(octokit: Octokit): ToolDefinition {
       },
       required: ["owner", "repo"],
     },
-    async execute(args): Promise<ToolResult> {
+    async execute(args, _context): Promise<ToolResult> {
       const owner = args.owner as string;
       const repo = args.repo as string;
       try {
@@ -96,7 +96,7 @@ function createGetPrDetails(octokit: Octokit): ToolDefinition {
       },
       required: ["owner", "repo", "pr_number"],
     },
-    async execute(args): Promise<ToolResult> {
+    async execute(args, _context): Promise<ToolResult> {
       const owner = args.owner as string;
       const repo = args.repo as string;
       const prNumber = args.pr_number as number;
@@ -149,7 +149,7 @@ function createListIssues(octokit: Octokit): ToolDefinition {
       },
       required: ["owner", "repo"],
     },
-    async execute(args): Promise<ToolResult> {
+    async execute(args, _context): Promise<ToolResult> {
       const owner = args.owner as string;
       const repo = args.repo as string;
       const labels = args.labels as string | undefined;
@@ -197,7 +197,7 @@ function createGetIssueDetails(octokit: Octokit): ToolDefinition {
       },
       required: ["owner", "repo", "issue_number"],
     },
-    async execute(args): Promise<ToolResult> {
+    async execute(args, _context): Promise<ToolResult> {
       const owner = args.owner as string;
       const repo = args.repo as string;
       const issueNumber = args.issue_number as number;
@@ -241,7 +241,7 @@ function createGetRecentMerges(octokit: Octokit): ToolDefinition {
       },
       required: ["owner", "repo"],
     },
-    async execute(args): Promise<ToolResult> {
+    async execute(args, _context): Promise<ToolResult> {
       const owner = args.owner as string;
       const repo = args.repo as string;
       const count = Math.min((args.count as number) ?? 10, 30);

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { colors, fontSizes, radii, spacing } from "../styles.js";
 import type { TranscriptTurn } from "../types.js";
 import { EvidenceCard } from "./EvidenceCard.js";
 import { ToolCallIndicator } from "./ToolCallIndicator.js";
@@ -17,41 +18,81 @@ export function Transcript({ turns }: TranscriptProps): React.JSX.Element {
   }, [turnsLength]);
 
   return (
-    <div style={{ minHeight: 300, maxHeight: "60vh", overflowY: "auto", padding: "12px 0" }}>
+    <div
+      style={{
+        flex: 1,
+        minHeight: 200,
+        maxHeight: "60vh",
+        overflowY: "auto",
+        padding: `${spacing.md}px 0`,
+      }}
+    >
       {turns.length === 0 && (
-        <p style={{ color: "#888", textAlign: "center" }}>
+        <p style={{ color: colors.textMuted, textAlign: "center", padding: spacing.xxl }}>
           Press the button and speak to start a conversation.
         </p>
       )}
-      {turns.map((turn) => (
-        <div
-          key={turn.id}
-          style={{
-            marginBottom: 12,
-            padding: 8,
-            borderRadius: 6,
-            background: turn.role === "user" ? "#f0f4f8" : "#e8f5e9",
-          }}
-        >
-          <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>
-            <strong>{turn.role === "user" ? "You" : "Jarvis"}</strong>
-            {" \u00b7 "}
-            {turn.timestamp.toLocaleTimeString()}
-            {turn.interrupted && <span style={{ color: "#f0ad4e" }}> [interrupted]</span>}
-          </div>
-          {turn.toolCalls?.map((tc) => (
-            <ToolCallIndicator key={tc.callId} toolCall={tc} />
-          ))}
-          <div style={{ fontSize: 14 }}>{turn.text || "\u2026"}</div>
-          {turn.evidence && turn.evidence.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-              {turn.evidence.map((ev, i) => (
-                <EvidenceCard key={`${ev.source}-${ev.entity}-${i}`} evidence={ev} />
+      {turns.map((turn) => {
+        const isUser = turn.role === "user";
+        return (
+          <div
+            key={turn.id}
+            style={{
+              display: "flex",
+              justifyContent: isUser ? "flex-end" : "flex-start",
+              marginBottom: spacing.sm,
+            }}
+          >
+            <div
+              style={{
+                maxWidth: "85%",
+                padding: `${spacing.sm}px ${spacing.md}px`,
+                borderRadius: radii.md,
+                background: isUser ? colors.userBubble : colors.assistantBubble,
+                border: `1px solid ${colors.border}`,
+                opacity: turn.interrupted ? 0.6 : 1,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: fontSizes.xs,
+                  color: colors.textMuted,
+                  marginBottom: spacing.xs,
+                }}
+              >
+                <strong style={{ color: colors.textSecondary }}>{isUser ? "You" : "Jarvis"}</strong>
+                {" \u00b7 "}
+                {turn.timestamp.toLocaleTimeString()}
+                {turn.interrupted && (
+                  <span style={{ color: colors.warning, marginLeft: spacing.xs }}>
+                    [interrupted]
+                  </span>
+                )}
+              </div>
+              {turn.toolCalls?.map((tc) => (
+                <ToolCallIndicator key={tc.callId} toolCall={tc} />
               ))}
+              <div style={{ fontSize: fontSizes.md, color: colors.textPrimary, lineHeight: 1.5 }}>
+                {turn.text || "\u2026"}
+              </div>
+              {turn.evidence && turn.evidence.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: spacing.xs,
+                    marginTop: spacing.sm,
+                  }}
+                >
+                  {turn.evidence.map((ev, i) => (
+                    <EvidenceCard key={`${ev.source}-${ev.entity}-${i}`} evidence={ev} />
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      ))}
+          </div>
+        );
+      })}
       <div ref={bottomRef} />
     </div>
   );

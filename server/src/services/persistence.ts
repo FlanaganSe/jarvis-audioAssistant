@@ -2,8 +2,11 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { messages, sessions } from "../db/schema.js";
 
-export async function createDbSession(db: Db): Promise<string> {
-  const [row] = await db.insert(sessions).values({}).returning({ id: sessions.id });
+export async function createDbSession(db: Db, userId?: string): Promise<string> {
+  const [row] = await db
+    .insert(sessions)
+    .values(userId ? { userId } : {})
+    .returning({ id: sessions.id });
   if (!row) throw new Error("Failed to create session row");
   return row.id;
 }

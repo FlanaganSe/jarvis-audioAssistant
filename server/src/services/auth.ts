@@ -2,11 +2,16 @@ import { SESSION } from "@jarvis/shared";
 import { SignJWT, jwtVerify } from "jose";
 import type { TokenPayload } from "../types.js";
 
-export async function signToken(secret: string): Promise<string> {
+export async function signToken(secret: string, userId?: string): Promise<string> {
   const sessionId = crypto.randomUUID();
   const key = new TextEncoder().encode(secret);
 
-  return new SignJWT({ sessionId })
+  const payload: Record<string, unknown> = { sessionId };
+  if (userId) {
+    payload.userId = userId;
+  }
+
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION.TOKEN_EXPIRY_S}s`)

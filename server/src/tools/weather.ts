@@ -53,7 +53,7 @@ function createWeatherTool(config: Config): ToolDefinition {
       },
       required: ["location"],
     },
-    async execute(args): Promise<ToolResult> {
+    async execute(args, _context): Promise<ToolResult> {
       const location = args.location as string;
       const key = cacheKey(location);
 

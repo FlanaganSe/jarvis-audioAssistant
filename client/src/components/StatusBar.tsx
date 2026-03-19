@@ -1,14 +1,15 @@
 import type { SessionStatus } from "@jarvis/shared";
+import { colors, fontSizes, spacing } from "../styles.js";
 
 const STATUS_COLORS: Record<string, string> = {
-  idle: "#888",
-  connecting: "#f0ad4e",
-  connected: "#5cb85c",
-  listening: "#d9534f",
-  processing: "#f0ad4e",
-  speaking: "#0275d8",
-  disconnected: "#888",
-  error: "#d9534f",
+  idle: colors.textMuted,
+  connecting: colors.warning,
+  connected: colors.success,
+  listening: colors.error,
+  processing: colors.warning,
+  speaking: colors.accent,
+  disconnected: colors.textMuted,
+  error: colors.error,
 };
 
 interface StatusBarProps {
@@ -18,26 +19,58 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ status, connectedAt, error }: StatusBarProps): React.JSX.Element {
-  const color = STATUS_COLORS[status] ?? "#888";
+  const color = STATUS_COLORS[status] ?? colors.textMuted;
 
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        padding: "8px 0",
-        borderBottom: "1px solid #eee",
+        gap: spacing.sm,
+        padding: `${spacing.md}px ${spacing.lg}px`,
+        borderBottom: `1px solid ${colors.border}`,
       }}
     >
-      <div style={{ width: 10, height: 10, borderRadius: "50%", background: color }} />
-      <span style={{ fontWeight: 600 }}>{status.toUpperCase()}</span>
+      <span
+        style={{
+          fontSize: fontSizes.xl,
+          fontWeight: 700,
+          letterSpacing: 2,
+          color: colors.textPrimary,
+        }}
+      >
+        JARVIS
+      </span>
+      <div
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          background: color,
+          marginLeft: spacing.xs,
+          boxShadow: `0 0 6px ${color}`,
+        }}
+      />
+      <span style={{ fontSize: fontSizes.sm, color: colors.textSecondary }}>{status}</span>
       {connectedAt && (
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#888" }}>
-          since {connectedAt.toLocaleTimeString()}
+        <span style={{ marginLeft: "auto", fontSize: fontSizes.xs, color: colors.textMuted }}>
+          {connectedAt.toLocaleTimeString()}
         </span>
       )}
-      {error && <span style={{ color: "#d9534f", fontSize: 12 }}>{error}</span>}
+      {error && (
+        <span
+          style={{
+            marginLeft: connectedAt ? undefined : "auto",
+            fontSize: fontSizes.xs,
+            color: colors.error,
+            background: "rgba(239,68,68,0.1)",
+            padding: `${spacing.xs}px ${spacing.sm}px`,
+            borderRadius: 4,
+          }}
+        >
+          {error}
+        </span>
+      )}
     </div>
   );
 }

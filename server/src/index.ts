@@ -6,6 +6,8 @@ import { loadConfig } from "./config.js";
 import { connectDb, disconnectDb } from "./db/index.js";
 import { registerAuthRoute } from "./routes/auth.js";
 import { registerHealthRoute } from "./routes/health.js";
+import { registerPreferencesRoute } from "./routes/preferences.js";
+import { registerSessionsRoute } from "./routes/sessions.js";
 import { registerWsRoute } from "./routes/ws.js";
 import { connectRedis, disconnectRedis } from "./services/cache.js";
 import { startIdleChecker } from "./services/idle.js";
@@ -34,6 +36,8 @@ await fastify.register(websocket);
 
 registerHealthRoute(fastify);
 registerAuthRoute(fastify, config);
+registerPreferencesRoute(fastify);
+registerSessionsRoute(fastify);
 registerWsRoute(fastify, config);
 
 const cleanup = startIdleChecker(fastify.log);

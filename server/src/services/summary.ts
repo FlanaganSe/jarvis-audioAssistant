@@ -48,11 +48,30 @@ export async function generateSessionSummary(
     unresolved: unknown[];
   };
 
+  // Generate embedding for semantic search (non-blocking on failure)
+  let embedding: number[] | undefined;
+  try {
+    const summaryText = [
+      `Topics: ${(summary.topics ?? []).join(", ")}`,
+      `Entities: ${JSON.stringify(summary.entities ?? {})}`,
+      `Key facts: ${JSON.stringify(summary.key_facts ?? [])}`,
+    ].join(". ");
+
+    const embResponse = await client.embeddings.create({
+      model: "text-embedding-3-small",
+      input: summaryText,
+    });
+    embedding = embResponse.data[0]?.embedding;
+  } catch {
+    // pgvector or embedding API unavailable — proceed without embedding
+  }
+
   await db.insert(sessionSummaries).values({
     sessionId: sessionDbId,
     topics: summary.topics ?? [],
     entities: summary.entities ?? {},
     keyFacts: summary.key_facts ?? [],
     unresolved: summary.unresolved ?? [],
+    ...(embedding ? { embedding } : {}),
   });
 }

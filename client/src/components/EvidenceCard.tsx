@@ -1,13 +1,14 @@
 import type { Evidence } from "@jarvis/shared";
+import { colors, fontSizes, radii, spacing } from "../styles.js";
 
 interface EvidenceCardProps {
   evidence: Evidence;
 }
 
 function freshnessColor(sec: number): string {
-  if (sec < 120) return "#4caf50";
-  if (sec <= 180) return "#ff9800";
-  return "#f44336";
+  if (sec < 120) return colors.success;
+  if (sec <= 180) return colors.warning;
+  return colors.error;
 }
 
 function formatAge(sec: number): string {
@@ -17,26 +18,40 @@ function formatAge(sec: number): string {
   return `${min}m ago`;
 }
 
+function sourceIcon(source: string): string {
+  if (source === "github") return "\u{1F4E6}"; // package
+  if (source === "openweathermap") return "\u{1F321}"; // thermometer
+  if (source === "memory") return "\u{1F4AD}"; // thought bubble
+  return "\u{1F50D}"; // magnifying glass
+}
+
 export function EvidenceCard({ evidence }: EvidenceCardProps): React.JSX.Element {
   return (
     <div
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
-        padding: "3px 8px",
-        marginTop: 4,
-        borderRadius: 4,
-        background: "#f5f5f5",
-        fontSize: 11,
-        color: "#666",
+        gap: spacing.xs,
+        padding: `2px ${spacing.sm}px`,
+        borderRadius: radii.sm,
+        background: colors.surface,
+        border: `1px solid ${colors.border}`,
+        fontSize: fontSizes.xs,
+        color: colors.textSecondary,
       }}
     >
-      <span style={{ fontWeight: 600 }}>{evidence.source}</span>
+      <span>{sourceIcon(evidence.source)}</span>
       <span>{evidence.entity}</span>
-      <span style={{ color: freshnessColor(evidence.freshnessSec) }}>
-        {formatAge(evidence.freshnessSec)}
-      </span>
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: freshnessColor(evidence.freshnessSec),
+          display: "inline-block",
+        }}
+      />
+      <span style={{ color: colors.textMuted }}>{formatAge(evidence.freshnessSec)}</span>
     </div>
   );
 }

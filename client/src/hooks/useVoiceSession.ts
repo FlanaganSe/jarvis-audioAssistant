@@ -15,6 +15,7 @@ interface VoiceSession {
   turns: readonly TranscriptTurn[];
   connectedAt: Date | null;
   error: string | null;
+  userId: string | null;
   connect: () => void;
   disconnect: () => void;
   startListening: () => void;
@@ -26,6 +27,7 @@ export function useVoiceSession(): VoiceSession {
   const [turns, setTurns] = useState<TranscriptTurn[]>([]);
   const [connectedAt, setConnectedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(() => localStorage.getItem("jarvis_userId"));
 
   const wsRef = useRef<WebSocket | null>(null);
   const statusRef = useRef<DisplayStatus>("disconnected");
@@ -64,7 +66,26 @@ export function useVoiceSession(): VoiceSession {
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/token", { method: "POST" });
+      // Ensure persistent user identity
+      let userId = localStorage.getItem("jarvis_userId");
+      if (!userId) {
+        const regRes = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (!regRes.ok) throw new Error("Failed to register user");
+        const regData = await regRes.json();
+        userId = regData.userId as string;
+        localStorage.setItem("jarvis_userId", userId);
+        setUserId(userId);
+      }
+
+      const res = await fetch("/api/auth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
       if (!res.ok) throw new Error("Failed to get auth token");
       const { token } = await res.json();
 
@@ -327,6 +348,7 @@ export function useVoiceSession(): VoiceSession {
     turns,
     connectedAt,
     error,
+    userId,
     connect,
     disconnect,
     startListening,

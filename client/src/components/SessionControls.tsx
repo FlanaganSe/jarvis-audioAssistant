@@ -1,4 +1,5 @@
 import type { SessionStatus } from "@jarvis/shared";
+import { colors, fontSizes, radii, spacing } from "../styles.js";
 
 interface SessionControlsProps {
   status: SessionStatus | "disconnected" | "error";
@@ -6,6 +7,16 @@ interface SessionControlsProps {
   onDisconnect: () => void;
   onReconnect: () => void;
 }
+
+const btnStyle: React.CSSProperties = {
+  padding: `${spacing.xs}px ${spacing.md}px`,
+  cursor: "pointer",
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
+  color: colors.textSecondary,
+  fontSize: fontSizes.sm,
+};
 
 export function SessionControls({
   status,
@@ -22,30 +33,22 @@ export function SessionControls({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "8px 0",
-        borderTop: "1px solid #eee",
-        fontSize: 13,
-        color: "#888",
+        padding: `${spacing.sm}px 0`,
+        borderTop: `1px solid ${colors.border}`,
+        fontSize: fontSizes.sm,
+        color: colors.textMuted,
       }}
     >
       <span>
         {turnCount} turn{turnCount !== 1 ? "s" : ""}
       </span>
       {showReconnect && (
-        <button
-          type="button"
-          onClick={onReconnect}
-          style={{ padding: "4px 12px", cursor: "pointer" }}
-        >
+        <button type="button" onClick={onReconnect} style={{ ...btnStyle, color: colors.accent }}>
           Reconnect
         </button>
       )}
       {isConnected && (
-        <button
-          type="button"
-          onClick={onDisconnect}
-          style={{ padding: "4px 12px", cursor: "pointer" }}
-        >
+        <button type="button" onClick={onDisconnect} style={btnStyle}>
           End Session
         </button>
       )}

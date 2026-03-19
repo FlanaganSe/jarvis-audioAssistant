@@ -1,9 +1,50 @@
 import type { SessionStatus } from "@jarvis/shared";
+import { colors, fontSizes, spacing } from "../styles.js";
 
 interface PushToTalkButtonProps {
   status: SessionStatus | "disconnected" | "error";
   onPressStart: () => void;
   onPressEnd: () => void;
+}
+
+function getButtonStyle(
+  status: string,
+  canPress: boolean,
+  isListening: boolean,
+): React.CSSProperties {
+  let bg: string = colors.textMuted;
+  let animation = "none";
+
+  if (isListening) {
+    bg = colors.error;
+    animation = "pulse-listening 1.2s ease-in-out infinite";
+  } else if (status === "speaking") {
+    bg = colors.accent;
+    animation = "pulse-speaking 1.5s ease-in-out infinite";
+  } else if (status === "processing") {
+    bg = colors.warning;
+    animation = "pulse-processing 1s ease-in-out infinite";
+  } else if (canPress) {
+    bg = colors.accent;
+    animation = "pulse-idle 2.5s ease-in-out infinite";
+  }
+
+  return {
+    width: 80,
+    height: 80,
+    borderRadius: "50%",
+    border: "none",
+    background: bg,
+    color: "#fff",
+    fontSize: fontSizes.sm,
+    fontWeight: 600,
+    cursor: canPress ? "pointer" : "not-allowed",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    transition: "background 0.2s, transform 0.1s",
+    animation,
+    transform: isListening ? "scale(1.05)" : "scale(1)",
+  };
 }
 
 export function PushToTalkButton({
@@ -15,15 +56,15 @@ export function PushToTalkButton({
   const canPress = status === "connected" || status === "speaking" || status === "listening";
 
   const label = isListening
-    ? "Release to Send"
+    ? "Release"
     : status === "speaking"
-      ? "Tap to Interrupt"
-      : "Push to Talk";
-
-  const bgColor = isListening ? "#d9534f" : canPress ? "#0275d8" : "#ccc";
+      ? "Interrupt"
+      : status === "processing"
+        ? "..."
+        : "Talk";
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", padding: "16px 0" }}>
+    <div style={{ display: "flex", justifyContent: "center", padding: `${spacing.xl}px 0` }}>
       <button
         type="button"
         disabled={!canPress}
@@ -40,21 +81,7 @@ export function PushToTalkButton({
           e.preventDefault();
           onPressEnd();
         }}
-        style={{
-          width: 120,
-          height: 120,
-          borderRadius: "50%",
-          border: "none",
-          background: bgColor,
-          color: "#fff",
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: canPress ? "pointer" : "not-allowed",
-          userSelect: "none",
-          WebkitUserSelect: "none",
-          transition: "background 0.15s",
-          boxShadow: isListening ? "0 0 0 4px rgba(217,83,79,0.3)" : "0 2px 8px rgba(0,0,0,0.15)",
-        }}
+        style={getButtonStyle(status, canPress, isListening)}
       >
         {label}
       </button>

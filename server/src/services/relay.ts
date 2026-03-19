@@ -1,8 +1,11 @@
 import type { ClientMessage, ServerMessage } from "@jarvis/shared";
+import { eq } from "drizzle-orm";
 import type { WebSocket as WsType } from "ws";
 import WebSocket from "ws";
 import type { Config } from "../config.js";
 import { getDb } from "../db/index.js";
+import { users } from "../db/schema.js";
+import type { ToolContext } from "../tools/types.js";
 import type { SessionState } from "../types.js";
 import { endDbSession, saveMessage } from "./persistence.js";
 import { sessionManager } from "./session.js";
@@ -11,19 +14,47 @@ import { toolRegistry } from "./tool-registry.js";
 
 const OPENAI_MODEL = "gpt-realtime-mini";
 
-const SYSTEM_PROMPT = `You are Jarvis, a voice assistant for frontline workers. You are calm, concise, and direct. Keep spoken answers to 1-3 sentences unless the user asks for more detail.
+const BASE_SYSTEM_PROMPT = `You are Jarvis, a voice assistant for frontline workers. You are calm, concise, and direct.
 
-Rules:
-- For questions about GitHub repositories, PRs, issues, or merges, you MUST use the appropriate github_ tool. NEVER fabricate repository data, PR numbers, issue counts, or author names.
-- For questions about weather, temperature, or conditions at a location, you MUST use the weather_get_current tool. Never guess weather data.
-- When you need to look something up, briefly acknowledge the request first (e.g., "Let me check that for you"), then call the tool.
-- When reporting tool results, cite the exact numbers and names from the tool response. Do not round, approximate, or embellish.
-- When reporting weather data, mention how recent the data is (e.g., "based on data from about 30 seconds ago").
-- If you don't have a tool to answer a question, say "I don't have that information right now."
-- If a tool returns an error, report the error honestly.
-- Be helpful and conversational for general questions.
-- If you don't know something, say "I don't know" rather than guessing.
-- Keep responses concise. The user is busy and needs fast answers.`;
+VOICE STYLE:
+- Keep spoken answers to 1-3 sentences unless asked for more detail.
+- When you need to look something up, briefly say "Let me check that" before calling a tool.
+- When reporting data, cite exact values from tool results. Never round or embellish.
+- If you're unsure or lack evidence, say "I don't know" or "I don't have that information right now."
+
+TOOLS AND EVIDENCE:
+- For GitHub questions (repos, PRs, issues, merges): use the github_* tools. Never fabricate repo data.
+- For weather questions: use weather_get_current. Include how old the data is.
+- For questions about past conversations or "what we discussed before": use memory_recall. Never fabricate memories. Cite the session date and specific facts.
+- For "what can you do" or capability questions: use jarvis_capabilities. Report actual capabilities accurately — never claim abilities you don't have.
+- For preference management: when the user says "remember that...", "from now on...", or "always/never", you MUST call preference_set. Use preference_list when asked about preferences. Use preference_delete when told to "forget that" or "stop doing X".
+
+TRUST RULES:
+- Never fabricate repository data, PR numbers, issue counts, weather readings, or memories.
+- If a tool returns an error, report it honestly.
+- If the user asks about something outside your capabilities, say so clearly.`;
+
+async function buildSystemPrompt(userId?: string): Promise<string> {
+  if (!userId) return BASE_SYSTEM_PROMPT;
+
+  try {
+    const db = getDb();
+    const [user] = await db
+      .select({ preferences: users.preferences })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const prefs = Array.isArray(user?.preferences) ? (user.preferences as string[]) : [];
+    if (prefs.length === 0) return BASE_SYSTEM_PROMPT;
+
+    const prefSection = prefs.map((p, i) => `${i + 1}. ${p}`).join("\n");
+    return `${BASE_SYSTEM_PROMPT}\n\nUSER PREFERENCES (follow these standing instructions):\n${prefSection}`;
+  } catch (err) {
+    console.warn(`[relay] Failed to load user preferences: ${err}`);
+    return BASE_SYSTEM_PROMPT;
+  }
+}
 
 function send(ws: WsType, msg: ServerMessage): void {
   if (ws.readyState === WebSocket.OPEN) {
@@ -59,29 +90,32 @@ export function createRelaySession(clientWs: WsType, config: Config, session: Se
   });
 
   openai.on("open", () => {
-    log("OpenAI WS connected, sending session.update");
-    openai.send(
-      JSON.stringify({
-        type: "session.update",
-        session: {
-          type: "realtime",
-          instructions: SYSTEM_PROMPT,
-          output_modalities: ["audio"],
-          tools: toolRegistry.getOpenAITools(),
-          audio: {
-            input: {
-              format: { type: "audio/pcm", rate: 24000 },
-              turn_detection: null,
-              transcription: { model: "gpt-4o-mini-transcribe" },
-            },
-            output: {
-              format: { type: "audio/pcm", rate: 24000 },
-              voice: "ash",
+    log("OpenAI WS connected, building system prompt");
+    void buildSystemPrompt(session.userId).then((instructions) => {
+      log("Sending session.update with preferences injected");
+      openai.send(
+        JSON.stringify({
+          type: "session.update",
+          session: {
+            type: "realtime",
+            instructions,
+            output_modalities: ["audio"],
+            tools: toolRegistry.getOpenAITools(),
+            audio: {
+              input: {
+                format: { type: "audio/pcm", rate: 24000 },
+                turn_detection: null,
+                transcription: { model: "gpt-4o-mini-transcribe" },
+              },
+              output: {
+                format: { type: "audio/pcm", rate: 24000 },
+                voice: "ash",
+              },
             },
           },
-        },
-      }),
-    );
+        }),
+      );
+    });
   });
 
   function sendToOpenAI(payload: string): void {
@@ -113,9 +147,15 @@ export function createRelaySession(clientWs: WsType, config: Config, session: Se
 
     send(clientWs, { type: "tool.started", callId, name, args });
 
+    const toolContext: ToolContext = {
+      userId: session.userId,
+      sessionId: session.sessionId,
+      db: getDb(),
+    };
+
     const startTime = Date.now();
     try {
-      const result = await toolRegistry.execute(name, args);
+      const result = await toolRegistry.execute(name, args, toolContext);
       const durationMs = Date.now() - startTime;
 
       send(clientWs, {

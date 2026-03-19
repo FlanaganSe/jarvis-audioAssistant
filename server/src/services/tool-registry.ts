@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolResult } from "../tools/types.js";
+import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
 
 export class ToolRegistry {
   private readonly tools = new Map<string, ToolDefinition>();
@@ -9,6 +9,10 @@ export class ToolRegistry {
 
   get(name: string): ToolDefinition | undefined {
     return this.tools.get(name);
+  }
+
+  getAll(): ReadonlyArray<ToolDefinition> {
+    return [...this.tools.values()];
   }
 
   getOpenAITools(): ReadonlyArray<{
@@ -25,12 +29,16 @@ export class ToolRegistry {
     }));
   }
 
-  async execute(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+  async execute(
+    name: string,
+    args: Record<string, unknown>,
+    context: ToolContext,
+  ): Promise<ToolResult> {
     const tool = this.tools.get(name);
     if (!tool) {
       throw new Error(`Unknown tool: ${name}`);
     }
-    return tool.execute(args);
+    return tool.execute(args, context);
   }
 }
 

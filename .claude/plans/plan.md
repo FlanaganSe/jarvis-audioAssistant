@@ -18,11 +18,20 @@
   - [x] CP5: Auth, session management, idle timeout — JWT, session map, 10-min timeout
   Commit: "feat: M1 — trustworthy voice loop with companion UI and auth"
 
-- [ ] M2: Grounded Operational Answers — tools, evidence, persistence
-  - [ ] CP1: Database + Redis infrastructure (Drizzle, ioredis, schema, cache service)
-  - [ ] CP2: Tool infrastructure in relay (tool registry, shared types, relay handler)
-  - [ ] CP3: GitHub integration (5 Octokit tools, system prompt, registration)
-  - [ ] CP4: Weather integration + freshness enforcement (OpenWeatherMap, Redis cache, poller)
-  - [ ] CP5: Evidence UI + refusal behavior (EvidenceCard, ToolCallIndicator, client types)
-  - [ ] CP6: Persistence, session summaries, idle timeout (saveMessage, summary, idle wiring)
+- [x] M2: Grounded Operational Answers — tools, evidence, persistence
+  - [x] CP1: Database + Redis infrastructure (Drizzle, ioredis, schema, cache service)
+  - [x] CP2: Tool infrastructure in relay (tool registry, shared types, relay handler)
+  - [x] CP3: GitHub integration (5 Octokit tools, system prompt, registration)
+  - [x] CP4: Weather integration + freshness enforcement (OpenWeatherMap, Redis cache, poller)
+  - [x] CP5: Evidence UI + refusal behavior (EvidenceCard, ToolCallIndicator, client types)
+  - [x] CP6: Persistence, session summaries, idle timeout (saveMessage, summary, idle wiring)
   Commit: "feat: M2 — grounded operational answers with tools, evidence, and persistence"
+
+- [x] M3: Memory, Self-Awareness, Preferences, and Demo-Ready Polish
+  - [x] CP1: User Identity — ToolContext, register route, userId in JWT, client localStorage
+  - [x] CP2: User Preferences — 3 tools, REST endpoints, preferences panel, system prompt injection
+  - [x] CP3: Cross-Session Memory Recall — memory_recall tool, keyword + pgvector
+  - [x] CP4: Capability Self-Awareness — jarvis_capabilities tool
+  - [x] CP5: UX Polish — design system, dark theme, component restyling, InfoDrawer
+  - [x] CP6: System Prompt Consolidation + typecheck/lint verification
+  Commit: "feat: M3 — memory, self-awareness, preferences, and demo-ready polish"
