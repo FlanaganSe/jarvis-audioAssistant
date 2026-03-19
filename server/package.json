@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate",
     "seed-demo": "tsx src/scripts/seed-demo.ts"
   },
   "dependencies": {
@@ -23,13 +24,13 @@
     "ioredis": "^5.10.0",
     "jose": "^6.0.0",
     "openai": "^6.32.0",
+    "drizzle-kit": "^0.31.10",
     "postgres": "^3.4.8",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.0",
-    "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }
