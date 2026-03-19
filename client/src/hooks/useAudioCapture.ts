@@ -1,9 +1,10 @@
 import { AUDIO } from "@jarvis/shared";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 
 interface AudioCaptureControls {
   start: (onChunk: (base64: string) => void) => Promise<void>;
   stop: () => void;
+  level: number;
 }
 
 export function useAudioCapture(): AudioCaptureControls {
@@ -12,6 +13,7 @@ export function useAudioCapture(): AudioCaptureControls {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const workletRef = useRef<AudioWorkletNode | null>(null);
   const callbackRef = useRef<((base64: string) => void) | null>(null);
+  const [level, setLevel] = useState(0);
 
   const start = useCallback(async (onChunk: (base64: string) => void) => {
     callbackRef.current = onChunk;
@@ -48,8 +50,19 @@ export function useAudioCapture(): AudioCaptureControls {
     const worklet = new AudioWorkletNode(ctx, "pcm16-capture");
     workletRef.current = worklet;
 
-    worklet.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-      let pcm16 = new Int16Array(event.data);
+    worklet.port.onmessage = (
+      event: MessageEvent<ArrayBuffer | { type: string; level: number }>,
+    ) => {
+      // Handle level messages from the worklet
+      if (event.data && typeof event.data === "object" && "type" in event.data) {
+        const msg = event.data as { type: string; level: number };
+        if (msg.type === "level") {
+          setLevel(msg.level);
+        }
+        return;
+      }
+
+      let pcm16 = new Int16Array(event.data as ArrayBuffer);
 
       // Downsample if needed (e.g. 48kHz → 24kHz by skipping every other sample)
       if (needsDownsample) {
@@ -85,7 +98,8 @@ export function useAudioCapture(): AudioCaptureControls {
     sourceRef.current = null;
     streamRef.current = null;
     callbackRef.current = null;
+    setLevel(0);
   }, []);
 
-  return { start, stop };
+  return { start, stop, level };
 }

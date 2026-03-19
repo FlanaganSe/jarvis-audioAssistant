@@ -16,6 +16,7 @@ interface VoiceSession {
   connectedAt: Date | null;
   error: string | null;
   userId: string | null;
+  audioLevel: number;
   connect: () => void;
   disconnect: () => void;
   startListening: () => void;
@@ -235,6 +236,28 @@ export function useVoiceSession(): VoiceSession {
             break;
           }
 
+          case "proposal": {
+            const turnId = currentAssistantTurnIdRef.current;
+            if (turnId) {
+              setTurns((prev) =>
+                prev.map((t) =>
+                  t.id === turnId
+                    ? {
+                        ...t,
+                        proposal: {
+                          type: msg.proposalType,
+                          title: msg.title,
+                          issueRef: msg.issueRef,
+                          data: msg.data,
+                        },
+                      }
+                    : t,
+                ),
+              );
+            }
+            break;
+          }
+
           case "turn.started":
             break;
 
@@ -349,6 +372,7 @@ export function useVoiceSession(): VoiceSession {
     connectedAt,
     error,
     userId,
+    audioLevel: capture.level,
     connect,
     disconnect,
     startListening,

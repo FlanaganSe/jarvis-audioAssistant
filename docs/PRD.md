@@ -574,32 +574,36 @@ Multi-tenant RLS on `user_id` from the data model layer.
 - Interruption protocol implemented (`response.cancel` + `conversation.item.truncate`); needs thorough verification in M1.
 - **Key lesson:** research docs mixed beta/GA schemas. M1 must verify all API details from primary docs before writing code.
 
-### Milestone 1: Trustworthy Voice Loop
+### Milestone 1: Trustworthy Voice Loop (COMPLETE)
 
-- Push-to-talk conversation works end-to-end.
-- Audible acknowledgement on slow operations.
-- Interruption works reliably.
-- Companion UI shows session state and transcript.
-- JWT auth, session management, idle timeout.
+- Push-to-talk conversation end-to-end via WebSocket relay to OpenAI Realtime.
+- Interruption with full `response.cancel` + `conversation.item.truncate` + playback cursor tracking.
+- Companion UI: StatusBar (color-coded), PushToTalkButton (press-and-hold + interrupt), Transcript (auto-scroll, interrupted turns marked), SessionControls.
+- JWT auth via jose, session management (in-memory), idle timeout infrastructure (stubbed, wires up in M2).
+- AudioWorklet capture with 48→24kHz downsampling, gapless PCM16 playback.
+- GA nested session schema verified (`session.audio.input.format`, `session.audio.output.format`).
+- **Carryover to M2:** idle timeout not yet wired up, audible acknowledgement deferred to when real tools exist.
 
-### Milestone 2: Grounded Operational Answers
+### Milestone 2: Grounded Operational Answers (COMPLETE)
 
-- Public GitHub URL ingestion and Q&A with citations.
-- External API answers are freshness-gated (if spec available).
-- Evidence and freshness timestamps appear in companion UI.
-- Refusal behavior is correct for missing/stale data.
-- Conversation persistence in PostgreSQL.
-- Structured session summaries generated at session end (R13 cross-session memory).
+- 5 GitHub tools via Octokit (list_open_prs, get_pr_details, list_issues, get_issue_details, get_recent_merges) with URL parser.
+- OpenWeatherMap tool with Redis cache, 3-min freshness enforcement, background poller (LRU 50 cities).
+- Tool infrastructure: ToolRegistry class, shared Evidence type, relay handles function_call_arguments.done.
+- Evidence cards in companion UI (color-coded freshness) + ToolCallIndicator (running/done/error).
+- Refusal behavior: stale weather data refused, missing tools refused, tool errors reported honestly.
+- Conversation persistence: all turns saved to PostgreSQL messages table.
+- Session summaries via GPT-4o-mini on session close (topics, entities, key_facts, unresolved).
+- Idle timeout wired up (10-min, closes WebSocket).
+- Database: 6 tables via Drizzle (users, sessions, messages, session_summaries, api_cache, github_cache).
 
-### Milestone 3: Memory and Product Polish
+### Milestone 3: Memory and Product Polish (COMPLETE)
 
-- Session continuity is stable.
-- Cross-session recall works with provenance (P1).
-- Capability self-awareness from live registry.
-- Tool call visualization in companion UI (P1).
-- User preferences (P1).
-- Data freshness display (P1).
-- UX feels coherent and demo-ready.
+- User identity: demo user via localStorage, userId flows through JWT → WS → DB sessions.
+- User preferences: 3 voice-driven tools (set/list/delete), REST endpoints, injected into system prompt, 20-item cap.
+- Cross-session memory: memory_recall tool with keyword search + pgvector embedding fallback for fuzzy queries.
+- Capability self-awareness: jarvis_capabilities reads live tool registry + static metadata.
+- UX polish: dark theme design system (styles.ts), all components restyled (chat bubbles, animated PTT, evidence chips, tool status dots), InfoDrawer with Preferences + Sessions tabs.
+- System prompt consolidated: clean sections (Voice Style / Tools and Evidence / Trust Rules).
 
 ### Milestone 4: Showcase Layer
 

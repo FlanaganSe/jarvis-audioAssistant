@@ -35,3 +35,11 @@
   - [x] CP5: UX Polish — design system, dark theme, component restyling, InfoDrawer
   - [x] CP6: System Prompt Consolidation + typecheck/lint verification
   Commit: "feat: M3 — memory, self-awareness, preferences, and demo-ready polish"
+
+- [x] M4: Showcase Layer — Demo-Ready Features and Final Polish
+  - [x] CP1: Repo Briefing — github_repo_briefing tool, register, update system prompt → verify: `pnpm typecheck`
+  - [x] CP2: What Changed — github_repo_changes tool (session memory + GitHub temporal queries) → verify: `pnpm typecheck`
+  - [x] CP3: Action Proposals — github_propose_action tool, proposal ServerMessage, ProposalCard UI, relay dispatch → verify: `pnpm typecheck`
+  - [x] CP4: Audio Level Visualization — worklet RMS level, useAudioCapture level state, PushToTalkButton animation → verify: `pnpm typecheck`
+  - [x] CP5: Final Demo Polish — capabilities update, system prompt consolidation, seed script, lint/typecheck → verify: `pnpm ci`
+  Commit: "feat: M4 — showcase layer with repo briefing, proposals, audio viz, and demo polish"

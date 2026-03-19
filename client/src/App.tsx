@@ -53,6 +53,7 @@ export function App(): React.JSX.Element {
 
       <PushToTalkButton
         status={session.status}
+        audioLevel={session.audioLevel}
         onPressStart={session.startListening}
         onPressEnd={session.stopListening}
       />

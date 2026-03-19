@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { colors, fontSizes, radii, spacing } from "../styles.js";
 import type { TranscriptTurn } from "../types.js";
 import { EvidenceCard } from "./EvidenceCard.js";
+import { ProposalCard } from "./ProposalCard.js";
 import { ToolCallIndicator } from "./ToolCallIndicator.js";
 
 interface TranscriptProps {
@@ -89,6 +90,7 @@ export function Transcript({ turns }: TranscriptProps): React.JSX.Element {
                   ))}
                 </div>
               )}
+              {turn.proposal && <ProposalCard proposal={turn.proposal} />}
             </div>
           </div>
         );

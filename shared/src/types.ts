@@ -46,4 +46,12 @@ export type ServerMessage =
       durationMs: number;
       evidence: Evidence | null;
     }
-  | { type: "tool.error"; callId: string; name: string; error: string };
+  | { type: "tool.error"; callId: string; name: string; error: string }
+  | {
+      type: "proposal";
+      callId: string;
+      proposalType: "fix_plan" | "pr_outline" | "comment_draft";
+      title: string;
+      issueRef: string;
+      data: Record<string, unknown>;
+    };

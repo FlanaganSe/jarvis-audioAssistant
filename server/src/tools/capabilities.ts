@@ -25,6 +25,9 @@ function createJarvisCapabilities(): ToolDefinition {
               "github_list_issues",
               "github_get_issue_details",
               "github_get_recent_merges",
+              "github_repo_briefing",
+              "github_repo_changes",
+              "github_propose_action",
             ],
           },
           {
@@ -37,17 +40,21 @@ function createJarvisCapabilities(): ToolDefinition {
           "Cross-session memory — I can recall what we discussed in past conversations",
           "User preferences — I remember standing instructions you set",
           "Grounded answers — every data point comes from a live API with evidence and freshness tracking",
+          "Repo briefings — comprehensive snapshot of any GitHub repo in 15 seconds",
+          "What changed — shows what's new since your last conversation about a repo",
+          "Action proposals — I can analyze issues and propose fix plans, PR outlines, or comment drafts (requires your approval to execute)",
         ],
         limitations: [
           "Read-only — I cannot create PRs, post comments, merge branches, or modify any external system",
+          "Proposals require your approval — I plan, you decide",
           "Weather data has a 3-minute freshness window",
           "English only",
           "No email, Slack, calendar, or file system access",
         ],
         coming_soon: [
           "Connected GitHub workspaces for your team's repos",
-          "Issue analysis and draft PR proposals (read the issue, propose a fix)",
-          "Repository briefing — daily summary of what changed",
+          "Approval workflows — execute proposals with one click",
+          "Slack and calendar integration",
         ],
       };
 

@@ -5,6 +5,7 @@ import WebSocket from "ws";
 import type { Config } from "../config.js";
 import { getDb } from "../db/index.js";
 import { users } from "../db/schema.js";
+import type { ProposalToolResult } from "../tools/github-proposals.js";
 import type { ToolContext } from "../tools/types.js";
 import type { SessionState } from "../types.js";
 import { endDbSession, saveMessage } from "./persistence.js";
@@ -23,16 +24,20 @@ VOICE STYLE:
 - If you're unsure or lack evidence, say "I don't know" or "I don't have that information right now."
 
 TOOLS AND EVIDENCE:
-- For GitHub questions (repos, PRs, issues, merges): use the github_* tools. Never fabricate repo data.
+- For repo overviews or briefings ("state of this repo", "how's it looking"): use github_repo_briefing. Speak a concise 15-second summary.
+- For "what changed" or "any updates" about a repo: use github_repo_changes. It finds the timeframe from your past conversations automatically.
+- For specific GitHub questions (PRs, issues, merges): use the appropriate github_* tool.
 - For weather questions: use weather_get_current. Include how old the data is.
-- For questions about past conversations or "what we discussed before": use memory_recall. Never fabricate memories. Cite the session date and specific facts.
-- For "what can you do" or capability questions: use jarvis_capabilities. Report actual capabilities accurately — never claim abilities you don't have.
+- For past conversation recall: use memory_recall. Never fabricate memories. Cite the session date and specific facts.
+- For capability questions ("what can you do"): use jarvis_capabilities. Report actual capabilities accurately — never claim abilities you don't have.
 - For preference management: when the user says "remember that...", "from now on...", or "always/never", you MUST call preference_set. Use preference_list when asked about preferences. Use preference_delete when told to "forget that" or "stop doing X".
+- For fix proposals, PR drafts, or comment drafts: use github_propose_action. ALWAYS explain that the proposal needs approval — you cannot execute changes directly.
 
 TRUST RULES:
 - Never fabricate repository data, PR numbers, issue counts, weather readings, or memories.
 - If a tool returns an error, report it honestly.
-- If the user asks about something outside your capabilities, say so clearly.`;
+- If the user asks about something outside your capabilities, say so clearly and suggest what you can do instead.
+- For action proposals, always be clear: "This is a proposal. It would need your approval before any changes are made."`;
 
 async function buildSystemPrompt(userId?: string): Promise<string> {
   if (!userId) return BASE_SYSTEM_PROMPT;
@@ -165,6 +170,22 @@ export function createRelaySession(clientWs: WsType, config: Config, session: Se
         durationMs,
         evidence: result.evidence,
       });
+
+      // Send proposal card to client if this was a proposal tool
+      const proposalResult = result as ProposalToolResult;
+      if (proposalResult.proposalData) {
+        send(clientWs, {
+          type: "proposal",
+          callId,
+          proposalType: proposalResult.proposalData.type as
+            | "fix_plan"
+            | "pr_outline"
+            | "comment_draft",
+          title: proposalResult.proposalData.title,
+          issueRef: proposalResult.proposalData.issueRef,
+          data: proposalResult.proposalData.data,
+        });
+      }
 
       persistMessage(session, {
         role: "tool",
