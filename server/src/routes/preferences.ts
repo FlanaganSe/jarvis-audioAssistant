@@ -2,11 +2,7 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { getDb } from "../db/index.js";
 import { users } from "../db/schema.js";
-
-function getPrefsArray(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw as string[];
-  return [];
-}
+import { getPrefsArray } from "../tools/preferences.js";
 
 export function registerPreferencesRoute(fastify: FastifyInstance): void {
   fastify.get("/api/preferences", async (request, reply) => {

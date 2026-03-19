@@ -1,8 +1,8 @@
-import type { SessionStatus } from "@jarvis/shared";
+import type { DisplayStatus } from "@jarvis/shared";
 import { colors, fontSizes, spacing } from "../styles.js";
 
 interface PushToTalkButtonProps {
-  status: SessionStatus | "disconnected" | "error";
+  status: DisplayStatus;
   audioLevel?: number;
   onPressStart: () => void;
   onPressEnd: () => void;

@@ -45,9 +45,7 @@ const cleanup = startIdleChecker(fastify.log);
 const shutdown = async () => {
   cleanup();
   stopWeatherPoller();
-  await disconnectRedis();
-  await disconnectDb();
-  await fastify.close();
+  await Promise.allSettled([disconnectRedis(), disconnectDb(), fastify.close()]);
   process.exit(0);
 };
 

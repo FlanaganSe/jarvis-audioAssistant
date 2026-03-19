@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import OpenAI from "openai";
+import type { Db } from "../db/index.js";
 import { sessionSummaries, sessions } from "../db/schema.js";
 import type { ToolRegistry } from "../services/tool-registry.js";
 import type { ToolDefinition, ToolResult } from "./types.js";
@@ -21,12 +22,7 @@ interface SummaryRow {
   unresolved: unknown;
 }
 
-async function fetchSummaries(
-  // biome-ignore lint/suspicious/noExplicitAny: Drizzle Db type
-  db: any,
-  userId: string,
-  timeframe?: string,
-): Promise<SummaryRow[]> {
+async function fetchSummaries(db: Db, userId: string, timeframe?: string): Promise<SummaryRow[]> {
   let dateFilter: Date | null = null;
   let limit = 20;
 
@@ -174,14 +170,13 @@ function createMemoryRecall(): ToolDefinition {
 }
 
 async function vectorSearch(
-  // biome-ignore lint/suspicious/noExplicitAny: Drizzle Db type
-  db: any,
+  db: Db,
   userId: string,
   query: string,
   timeframe?: string,
 ): Promise<SummaryRow[]> {
   try {
-    const client = new OpenAI();
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const embResponse = await client.embeddings.create({
       model: "text-embedding-3-small",
       input: query,
@@ -211,7 +206,7 @@ async function vectorSearch(
           LIMIT 3`,
     );
 
-    return (rows.rows ?? rows) as SummaryRow[];
+    return rows as unknown as SummaryRow[];
   } catch {
     return [];
   }

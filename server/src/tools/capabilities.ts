@@ -1,14 +1,13 @@
 import type { ToolRegistry } from "../services/tool-registry.js";
-import { toolRegistry } from "../services/tool-registry.js";
-import type { ToolDefinition, ToolResult } from "./types.js";
+import type { ToolResult } from "./types.js";
 
-function createJarvisCapabilities(): ToolDefinition {
+function createJarvisCapabilities(registry: ToolRegistry) {
   return {
     name: "jarvis_capabilities",
     description: "Describe Jarvis's current capabilities, integrations, and limitations",
     parameters: { type: "object", properties: {} },
-    async execute(_args, _context): Promise<ToolResult> {
-      const tools = toolRegistry.getAll();
+    async execute(_args: Record<string, unknown>, _context: unknown): Promise<ToolResult> {
+      const tools = registry.getAll();
       const toolSummaries = tools
         .filter((t) => t.name !== "jarvis_capabilities")
         .map((t) => ({ name: t.name, description: t.description }));
@@ -67,5 +66,5 @@ function createJarvisCapabilities(): ToolDefinition {
 }
 
 export function registerCapabilityTools(registry: ToolRegistry): void {
-  registry.register(createJarvisCapabilities());
+  registry.register(createJarvisCapabilities(registry));
 }

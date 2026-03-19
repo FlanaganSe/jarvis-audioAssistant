@@ -1,8 +1,8 @@
-import type { SessionStatus } from "@jarvis/shared";
+import type { DisplayStatus } from "@jarvis/shared";
 import { colors, fontSizes, radii, spacing } from "../styles.js";
 
 interface SessionControlsProps {
-  status: SessionStatus | "disconnected" | "error";
+  status: DisplayStatus;
   turnCount: number;
   onDisconnect: () => void;
   onReconnect: () => void;

@@ -26,16 +26,6 @@ body,
   }
 }
 
-@keyframes pulse-listening {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
-  }
-}
-
 @keyframes pulse-processing {
   0%,
   100% {
@@ -43,15 +33,6 @@ body,
   }
   50% {
     opacity: 1;
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
   }
 }
 

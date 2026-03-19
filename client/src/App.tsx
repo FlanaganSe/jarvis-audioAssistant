@@ -5,7 +5,7 @@ import { SessionControls } from "./components/SessionControls.js";
 import { StatusBar } from "./components/StatusBar.js";
 import { Transcript } from "./components/Transcript.js";
 import { useVoiceSession } from "./hooks/useVoiceSession.js";
-import { colors, fontSizes, radii, spacing } from "./styles.js";
+import { colors, fontSizes, fonts, radii, spacing } from "./styles.js";
 
 export function App(): React.JSX.Element {
   const session = useVoiceSession();
@@ -20,7 +20,7 @@ export function App(): React.JSX.Element {
         height: "100vh",
         display: "flex",
         flexDirection: "column",
-        fontFamily: "system-ui, -apple-system, sans-serif",
+        fontFamily: fonts.body,
       }}
     >
       <div style={{ display: "flex", alignItems: "center" }}>

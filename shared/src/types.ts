@@ -6,6 +6,9 @@ export type SessionStatus =
   | "processing"
   | "speaking";
 
+/** Extended status including client-only states */
+export type DisplayStatus = SessionStatus | "disconnected" | "error";
+
 /** Evidence metadata for grounded answers */
 export interface Evidence {
   source: string;

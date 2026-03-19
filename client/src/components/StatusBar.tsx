@@ -1,7 +1,7 @@
-import type { SessionStatus } from "@jarvis/shared";
+import type { DisplayStatus } from "@jarvis/shared";
 import { colors, fontSizes, spacing } from "../styles.js";
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<DisplayStatus, string> = {
   idle: colors.textMuted,
   connecting: colors.warning,
   connected: colors.success,
@@ -13,7 +13,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 interface StatusBarProps {
-  status: SessionStatus | "disconnected" | "error";
+  status: DisplayStatus;
   connectedAt: Date | null;
   error: string | null;
 }

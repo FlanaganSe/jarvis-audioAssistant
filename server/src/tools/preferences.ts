@@ -5,7 +5,7 @@ import type { ToolDefinition, ToolResult } from "./types.js";
 
 const MAX_PREFERENCES = 20;
 
-function getPrefsArray(raw: unknown): string[] {
+export function getPrefsArray(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw as string[];
   return [];
 }

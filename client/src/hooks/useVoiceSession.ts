@@ -1,5 +1,5 @@
 import { AUDIO } from "@jarvis/shared";
-import type { ClientMessage, ServerMessage, SessionStatus } from "@jarvis/shared";
+import type { ClientMessage, DisplayStatus, ServerMessage } from "@jarvis/shared";
 import { useCallback, useRef, useState } from "react";
 
 /** OpenAI requires >=100ms; use 150ms for safety margin */
@@ -7,8 +7,6 @@ const MIN_COMMIT_BYTES = AUDIO.BYTES_PER_MS * 150;
 import type { TranscriptTurn } from "../types.js";
 import { useAudioCapture } from "./useAudioCapture.js";
 import { useAudioPlayback } from "./useAudioPlayback.js";
-
-type DisplayStatus = SessionStatus | "disconnected" | "error";
 
 interface VoiceSession {
   status: DisplayStatus;
@@ -99,7 +97,13 @@ export function useVoiceSession(): VoiceSession {
       };
 
       ws.onmessage = (event) => {
-        const msg: ServerMessage = JSON.parse(event.data);
+        let msg: ServerMessage;
+        try {
+          msg = JSON.parse(event.data);
+        } catch {
+          console.error("[ws] Failed to parse server message");
+          return;
+        }
 
         switch (msg.type) {
           case "session.ready":
@@ -340,6 +344,12 @@ export function useVoiceSession(): VoiceSession {
       });
     } catch (err) {
       console.error("Failed to start audio capture:", err);
+      // Clean up orphaned user turn
+      const failedTurnId = pendingUserTurnIdRef.current;
+      if (failedTurnId) {
+        setTurns((prev) => prev.filter((t) => t.id !== failedTurnId));
+        pendingUserTurnIdRef.current = null;
+      }
       updateStatus("error");
       setError(err instanceof Error ? err.message : "Microphone access failed");
     }

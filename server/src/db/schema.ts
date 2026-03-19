@@ -54,21 +54,3 @@ export const sessionSummaries = pgTable("session_summaries", {
   embedding: vector("embedding"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
-
-export const apiCache = pgTable("api_cache", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  source: text("source").notNull(),
-  cacheKey: text("cache_key").unique().notNull(),
-  data: jsonb("data").notNull(),
-  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-});
-
-export const githubCache = pgTable("github_cache", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  repoUrl: text("repo_url").notNull(),
-  queryType: text("query_type").notNull(),
-  data: jsonb("data").notNull(),
-  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-});
