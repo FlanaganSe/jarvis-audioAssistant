@@ -32,13 +32,18 @@ export function registerWebRTCRoutes(fastify: FastifyInstance): void {
       type: "realtime",
       model: OPENAI_MODEL,
       instructions: SYSTEM_INSTRUCTIONS,
-      modalities: ["text", "audio"],
-      voice: "ash",
-      input_audio_transcription: { model: "gpt-4o-mini-transcribe" },
-      turn_detection: null,
+      output_modalities: ["audio"],
+      audio: {
+        input: {
+          turn_detection: null,
+          transcription: { model: "gpt-4o-mini-transcribe" },
+        },
+        output: {
+          voice: "ash",
+        },
+      },
       tools: [GITHUB_TOOL_DEF],
       tool_choice: "auto",
-      temperature: 0.8,
     }));
 
     try {

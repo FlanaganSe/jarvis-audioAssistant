@@ -101,6 +101,9 @@ let firstAudioTimestamp = 0;
 // Transcript accumulation
 let currentTranscript = '';
 
+// WebRTC playback timing (can't track bytes, use wall clock instead)
+let webrtcResponseStartTime = 0;
+
 // ─── UI ──────────────────────────────────────────────────────────────
 const statusEl = document.getElementById('status');
 const connEl = document.getElementById('connection');
@@ -208,6 +211,7 @@ function resetPlaybackTracking() {
   currentTranscript = '';
   nextPlayTime = 0;
   isPlaying = false;
+  webrtcResponseStartTime = 0;
 }
 
 // ─── AudioWorklet for PCM16 capture at 24kHz ────────────────────────
@@ -294,8 +298,13 @@ async function connectRelay() {
         break;
 
       case 'audio':
-        if (!currentItemId) currentItemId = msg.item_id;
-        if (!currentResponseId) currentResponseId = msg.response_id;
+        // New response item — reset byte counters
+        if (msg.item_id !== currentItemId) {
+          totalAudioBytesScheduled = 0;
+          totalAudioBytesPlayed = 0;
+          currentItemId = msg.item_id;
+          currentResponseId = msg.response_id;
+        }
         if (!firstAudioTimestamp && commitTimestamp) {
           firstAudioTimestamp = Date.now();
           logMetric('E2E latency (commit→first audio)', firstAudioTimestamp - commitTimestamp);
@@ -338,10 +347,17 @@ async function connectRelay() {
       case 'input_committed':
         break;
 
-      case 'error':
-        log(`Error: ${JSON.stringify(msg.error)}`, 'log-error');
-        setStatus('error');
+      case 'error': {
+        const code = msg.error?.code;
+        // These are expected when interrupting a short/finished response
+        if (code === 'response_cancel_not_active' || code === 'invalid_value') {
+          log(`(non-fatal) ${msg.error.message}`, 'log-event');
+        } else {
+          log(`Error: ${JSON.stringify(msg.error)}`, 'log-error');
+          setStatus('error');
+        }
         break;
+      }
 
       default:
         // Silently ignore unknown
@@ -470,20 +486,34 @@ function handleWebRTCEvent(event) {
       log('WebRTC session configured');
       break;
 
+    // Track item_id from any event that carries it (audio deltas don't arrive via data channel)
+    case 'response.output_item.added':
+    case 'response.output_item.done':
+      if (event.item?.id) {
+        currentItemId = event.item.id;
+        currentResponseId = event.response_id;
+      }
+      break;
+
+    case 'response.content_part.added':
+      // Also carries item_id
+      if (event.item_id) {
+        currentItemId = event.item_id;
+        currentResponseId = event.response_id;
+        webrtcResponseStartTime = Date.now();
+      }
+      break;
+
     case 'response.output_audio.delta':
     case 'response.audio.delta':
-      // In WebRTC mode, audio arrives via RTC track, not data channel
-      // But we still get these events — track the item_id for interruption
-      if (!currentItemId) currentItemId = event.item_id;
-      if (!currentResponseId) currentResponseId = event.response_id;
-      if (!firstAudioTimestamp && commitTimestamp) {
-        firstAudioTimestamp = Date.now();
-        logMetric('E2E latency (commit→first audio event)', firstAudioTimestamp - commitTimestamp);
-      }
+      // May or may not arrive via data channel in WebRTC — handle if they do
+      if (event.item_id) currentItemId = event.item_id;
+      if (event.response_id) currentResponseId = event.response_id;
       break;
 
     case 'output_audio_buffer.started':
       setStatus('speaking');
+      webrtcResponseStartTime = Date.now();
       break;
 
     case 'output_audio_buffer.stopped':
@@ -491,8 +521,19 @@ function handleWebRTCEvent(event) {
       resetPlaybackTracking();
       break;
 
+    case 'output_audio_buffer.cleared':
+      // Server confirmed buffer cleared after our interruption — unmute audio
+      if (remoteAudioEl) remoteAudioEl.muted = false;
+      log('Output buffer cleared, audio unmuted');
+      break;
+
     case 'response.output_audio_transcript.delta':
     case 'response.audio_transcript.delta':
+      // Track item_id from transcript events too
+      if (event.item_id && !currentItemId) {
+        currentItemId = event.item_id;
+        currentResponseId = event.response_id;
+      }
       currentTranscript += event.delta;
       break;
 
@@ -529,9 +570,15 @@ function handleWebRTCEvent(event) {
       if (state !== 'speaking') setStatus('idle');
       break;
 
-    case 'error':
-      log(`OpenAI error: ${JSON.stringify(event.error)}`, 'log-error');
+    case 'error': {
+      const code = event.error?.code;
+      if (code === 'response_cancel_not_active' || code === 'invalid_value') {
+        log(`(non-fatal) ${event.error.message}`, 'log-event');
+      } else {
+        log(`OpenAI error: ${JSON.stringify(event.error)}`, 'log-error');
+      }
       break;
+    }
 
     default:
       // Ignore other events silently
@@ -603,18 +650,27 @@ async function pttDown() {
         logMetric('Interruption latency', Date.now() - interruptStart);
       } else {
         // WebRTC interruption
+        // 1. Stop local audio immediately by muting (unmuted on buffer.cleared event)
+        if (remoteAudioEl) remoteAudioEl.muted = true;
+
         if (dc?.readyState === 'open') {
+          // 2. Cancel the response on OpenAI's side
           dc.send(JSON.stringify({ type: 'response.cancel' }));
+          // 3. Clear the output audio buffer (WebRTC-specific)
+          dc.send(JSON.stringify({ type: 'output_audio_buffer.clear' }));
+
+          // 4. Truncate conversation to what user actually heard
           if (currentItemId) {
-            // In WebRTC mode we can't easily track exact playback cursor
-            // Use output_audio_buffer.clear instead
-            dc.send(JSON.stringify({ type: 'output_audio_buffer.clear' }));
-            // Still send truncate with best estimate
+            // Estimate audio_end_ms from wall clock (audio plays ~realtime)
+            const estimatedMs = webrtcResponseStartTime > 0
+              ? Date.now() - webrtcResponseStartTime
+              : 0;
+            log(`Interrupting at ~${estimatedMs}ms of audio heard`);
             dc.send(JSON.stringify({
               type: 'conversation.item.truncate',
               item_id: currentItemId,
               content_index: 0,
-              audio_end_ms: Math.floor(totalAudioBytesPlayed / 48) || 0,
+              audio_end_ms: estimatedMs,
             }));
           }
           logMetric('Interruption latency', Date.now() - interruptStart);

@@ -19,21 +19,25 @@
 
 | Turn | Type | E2E Latency (ms) | Time to First Playback (ms) | Tool Round-Trip (ms) | Interruption (ms) |
 |------|------|-------------------|-----------------------------|-----------------------|--------------------|
-| 1    | Conversational |  |  |  |  |
-| 2    | Conversational |  |  |  |  |
-| 3    | Tool call      |  |  |  |  |
-| 4    | Tool call      |  |  |  |  |
-| 5    | Interruption   |  |  |  |  |
+| 1    | Conversational | 1328 | — | — | — |
+| 2    | Conversational | 1393 | — | — | — |
+| 3    | Conversational | 2138 | — | — | — |
+| 4    | Conversational | 1190 | — | — | — |
+| 5    | Conversational | 2434 | — | — | — |
+
+Note: Turns 1-5 were conversational only (no tool calls or interruption test yet). Interruption was attempted but response had already finished — byte counter bug caused `audio_end_ms` to exceed actual audio length. Bug fixed; needs retest for tool calls and interruption.
 
 ### WebRTC
 
 | Turn | Type | E2E Latency (ms) | Time to First Playback (ms) | Tool Round-Trip (ms) | Interruption (ms) |
 |------|------|-------------------|-----------------------------|-----------------------|--------------------|
-| 1    | Conversational |  |  |  |  |
-| 2    | Conversational |  |  |  |  |
-| 3    | Tool call      |  |  |  |  |
-| 4    | Tool call      |  |  |  |  |
-| 5    | Interruption   |  |  |  |  |
+| 1    | Conversational | — | — | — | — |
+| 2    | Conversational | — | — | — | — |
+| 3    | Conversational | — | — | — | — |
+| 4    | Conversational | — | — | — | — |
+| 5    | Conversational | — | — | — | — |
+
+Note: WebRTC conversational turns all working. No E2E latency metrics logged — the audio arrives via RTC track so the commit→first-audio-delta metric doesn't capture time-to-playback accurately in WebRTC mode. Needs retest with tool calls and interruption.
 
 ---
 

@@ -23,16 +23,22 @@ export function registerRelayRoute(fastify: FastifyInstance): void {
       openai.send(JSON.stringify({
         type: "session.update",
         session: {
+          type: "realtime",
           instructions: SYSTEM_INSTRUCTIONS,
-          modalities: ["text", "audio"],
-          voice: "ash",
-          input_audio_format: "pcm16",
-          output_audio_format: "pcm16",
-          input_audio_transcription: { model: "gpt-4o-mini-transcribe" },
-          turn_detection: null,
+          output_modalities: ["audio"],
+          audio: {
+            input: {
+              format: { type: "audio/pcm", rate: 24000 },
+              turn_detection: null,
+              transcription: { model: "gpt-4o-mini-transcribe" },
+            },
+            output: {
+              format: { type: "audio/pcm", rate: 24000 },
+              voice: "ash",
+            },
+          },
           tools: [GITHUB_TOOL_DEF],
           tool_choice: "auto",
-          temperature: 0.8,
         },
       }));
     });
@@ -48,6 +54,7 @@ export function registerRelayRoute(fastify: FastifyInstance): void {
 
         case "session.created":
           log(`Session created: ${event.session?.id}`);
+          log(`Session schema: ${JSON.stringify(event.session, null, 2)}`);
           break;
 
         // GA audio event name
