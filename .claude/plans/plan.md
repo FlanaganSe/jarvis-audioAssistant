@@ -17,3 +17,12 @@
   - [x] CP4: Companion UI — StatusBar, PushToTalkButton, Transcript, SessionControls
   - [x] CP5: Auth, session management, idle timeout — JWT, session map, 10-min timeout
   Commit: "feat: M1 — trustworthy voice loop with companion UI and auth"
+
+- [ ] M2: Grounded Operational Answers — tools, evidence, persistence
+  - [ ] CP1: Database + Redis infrastructure (Drizzle, ioredis, schema, cache service)
+  - [ ] CP2: Tool infrastructure in relay (tool registry, shared types, relay handler)
+  - [ ] CP3: GitHub integration (5 Octokit tools, system prompt, registration)
+  - [ ] CP4: Weather integration + freshness enforcement (OpenWeatherMap, Redis cache, poller)
+  - [ ] CP5: Evidence UI + refusal behavior (EvidenceCard, ToolCallIndicator, client types)
+  - [ ] CP6: Persistence, session summaries, idle timeout (saveMessage, summary, idle wiring)
+  Commit: "feat: M2 — grounded operational answers with tools, evidence, and persistence"

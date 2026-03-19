@@ -150,6 +150,70 @@ export function useVoiceSession(): VoiceSession {
             }
             break;
 
+          case "tool.started": {
+            const turnId = currentAssistantTurnIdRef.current;
+            if (turnId) {
+              setTurns((prev) =>
+                prev.map((t) =>
+                  t.id === turnId
+                    ? {
+                        ...t,
+                        toolCalls: [
+                          ...(t.toolCalls ?? []),
+                          {
+                            callId: msg.callId,
+                            name: msg.name,
+                            status: "running" as const,
+                            args: msg.args,
+                          },
+                        ],
+                      }
+                    : t,
+                ),
+              );
+            }
+            break;
+          }
+
+          case "tool.done": {
+            const turnId = currentAssistantTurnIdRef.current;
+            if (turnId) {
+              setTurns((prev) =>
+                prev.map((t) => {
+                  if (t.id !== turnId) return t;
+                  const toolCalls = (t.toolCalls ?? []).map((tc) =>
+                    tc.callId === msg.callId
+                      ? { ...tc, status: "done" as const, durationMs: msg.durationMs }
+                      : tc,
+                  );
+                  const evidence = msg.evidence
+                    ? [...(t.evidence ?? []), msg.evidence]
+                    : t.evidence;
+                  return { ...t, toolCalls, evidence };
+                }),
+              );
+            }
+            break;
+          }
+
+          case "tool.error": {
+            const turnId = currentAssistantTurnIdRef.current;
+            if (turnId) {
+              setTurns((prev) =>
+                prev.map((t) => {
+                  if (t.id !== turnId) return t;
+                  const toolCalls = (t.toolCalls ?? []).map((tc) =>
+                    tc.callId === msg.callId
+                      ? { ...tc, status: "error" as const, error: msg.error }
+                      : tc,
+                  );
+                  return { ...t, toolCalls };
+                }),
+              );
+            }
+            break;
+          }
+
           case "turn.started":
             break;
 

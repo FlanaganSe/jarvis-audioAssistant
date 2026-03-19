@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { TranscriptTurn } from "../types.js";
+import { EvidenceCard } from "./EvidenceCard.js";
+import { ToolCallIndicator } from "./ToolCallIndicator.js";
 
 interface TranscriptProps {
   turns: readonly TranscriptTurn[];
@@ -37,7 +39,17 @@ export function Transcript({ turns }: TranscriptProps): React.JSX.Element {
             {turn.timestamp.toLocaleTimeString()}
             {turn.interrupted && <span style={{ color: "#f0ad4e" }}> [interrupted]</span>}
           </div>
+          {turn.toolCalls?.map((tc) => (
+            <ToolCallIndicator key={tc.callId} toolCall={tc} />
+          ))}
           <div style={{ fontSize: 14 }}>{turn.text || "\u2026"}</div>
+          {turn.evidence && turn.evidence.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+              {turn.evidence.map((ev, i) => (
+                <EvidenceCard key={`${ev.source}-${ev.entity}-${i}`} evidence={ev} />
+              ))}
+            </div>
+          )}
         </div>
       ))}
       <div ref={bottomRef} />

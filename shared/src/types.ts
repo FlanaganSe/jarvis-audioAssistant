@@ -6,6 +6,15 @@ export type SessionStatus =
   | "processing"
   | "speaking";
 
+/** Evidence metadata for grounded answers */
+export interface Evidence {
+  source: string;
+  entity: string;
+  fetchedAt: string;
+  freshnessSec: number;
+  citationRef: string;
+}
+
 /** Client → Server WebSocket messages */
 export type ClientMessage =
   | { type: "audio"; data: string }
@@ -23,4 +32,18 @@ export type ServerMessage =
   | { type: "turn.started" }
   | { type: "error"; message: string; code?: string }
   | { type: "session.timeout" }
-  | { type: "session.ready" };
+  | { type: "session.ready" }
+  | {
+      type: "tool.started";
+      callId: string;
+      name: string;
+      args: Record<string, unknown>;
+    }
+  | {
+      type: "tool.done";
+      callId: string;
+      name: string;
+      durationMs: number;
+      evidence: Evidence | null;
+    }
+  | { type: "tool.error"; callId: string; name: string; error: string };

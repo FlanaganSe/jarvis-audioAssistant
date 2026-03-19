@@ -6,6 +6,7 @@ class SessionManager {
   create(sessionId: string): SessionState {
     const session: SessionState = {
       sessionId,
+      dbSessionId: "",
       connectedAt: new Date(),
       lastActivityAt: new Date(),
       turnCount: 0,
@@ -28,6 +29,12 @@ class SessionManager {
 
   remove(sessionId: string): void {
     this.sessions.delete(sessionId);
+  }
+
+  forEachSession(fn: (session: SessionState) => void): void {
+    for (const session of this.sessions.values()) {
+      fn(session);
+    }
   }
 
   get size(): number {

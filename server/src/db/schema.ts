@@ -1,0 +1,60 @@
+import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").unique().notNull(),
+  displayName: text("display_name"),
+  preferences: jsonb("preferences").default("{}"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const sessions = pgTable("sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  metadata: jsonb("metadata").default("{}"),
+});
+
+export const messages = pgTable("messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sessionId: uuid("session_id")
+    .references(() => sessions.id)
+    .notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  toolCalls: jsonb("tool_calls"),
+  toolName: text("tool_name"),
+  evidence: jsonb("evidence"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const sessionSummaries = pgTable("session_summaries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sessionId: uuid("session_id")
+    .references(() => sessions.id)
+    .notNull(),
+  topics: text("topics").array().notNull(),
+  entities: jsonb("entities").notNull(),
+  keyFacts: jsonb("key_facts").notNull(),
+  unresolved: jsonb("unresolved").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const apiCache = pgTable("api_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  source: text("source").notNull(),
+  cacheKey: text("cache_key").unique().notNull(),
+  data: jsonb("data").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const githubCache = pgTable("github_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  repoUrl: text("repo_url").notNull(),
+  queryType: text("query_type").notNull(),
+  data: jsonb("data").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});

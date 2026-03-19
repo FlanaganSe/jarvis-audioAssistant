@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
+import { getDb } from "../db/index.js";
 import { verifyToken } from "../services/auth.js";
+import { createDbSession } from "../services/persistence.js";
 import { createRelaySession } from "../services/relay.js";
 import { sessionManager } from "../services/session.js";
 
@@ -23,6 +25,15 @@ export function registerWsRoute(fastify: FastifyInstance, config: Config): void 
     // Use a unique connectionId per WebSocket (the JWT sessionId may be reused)
     const connectionId = crypto.randomUUID();
     const session = sessionManager.create(connectionId);
+
+    // Create a DB session row
+    try {
+      const db = getDb();
+      session.dbSessionId = await createDbSession(db);
+    } catch (err) {
+      fastify.log.warn({ connectionId, err }, "Failed to create DB session (non-fatal)");
+    }
+
     fastify.log.info({ connectionId }, "WebSocket session started");
 
     createRelaySession(socket, config, session);
