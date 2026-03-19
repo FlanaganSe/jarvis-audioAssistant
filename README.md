@@ -122,4 +122,3 @@ The current client assumes same-origin `/api` and `/ws` paths in production. Tha
 - [System](docs/SYSTEM.md)
 - [PRD](docs/PRD.md)
 - [Decisions](docs/decisions.md)
-- [Polish Research Memo](docs/codex-5.4-research.md)

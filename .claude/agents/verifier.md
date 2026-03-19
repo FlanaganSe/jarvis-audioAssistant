@@ -13,7 +13,7 @@ tools:
 You verify that the codebase is in a correct state.
 
 ## Rules
-- Run the full test suite: `pnpm ci`
+- Run the full verification suite: `pnpm verify`
 - Check for TypeScript errors: `pnpm typecheck`
 - Check for lint issues: `pnpm lint`
 - Report pass/fail with specific error details

@@ -104,7 +104,9 @@ server/           Fastify backend
       tool-registry.ts  Tool registration, OpenAI schema generation, dispatch
       persistence.ts    saveMessage, createDbSession, endDbSession
       summary.ts  GPT-4o-mini session summarization with embedding generation
+      summary-jobs.ts  Async promise queue for in-flight summaries (tracked at shutdown)
       auth.ts     JWT sign/verify via jose
+      http-auth.ts  Bearer token extraction + verification for HTTP routes
       cache.ts    Redis wrapper (fail-safe — all ops no-op if Redis unavailable)
       idle.ts     30-second interval checking for 10-minute idle sessions
       weather-poller.ts  3-minute background refresh for tracked weather cities
@@ -298,9 +300,25 @@ The Vite dev server proxies `/api` and `/ws` to `localhost:3001`.
 
 ## Testing
 
-Vitest is specified in the stack but tests have not been written yet. The project has the infrastructure wired (`pnpm test` runs `pnpm -r test`), but no workspace package defines test scripts or has Vitest installed. Critical paths that should be tested first: JWT sign/verify, tool registry dispatch, evidence freshness validation, session summary generation, audio encoding/decoding.
+Server-side unit tests use Vitest, co-located next to source files. No client-side tests exist yet.
 
-`pnpm run ci` runs: typecheck -> lint -> test (currently passes because the test step is a no-op).
+| Test file | What it covers |
+|-----------|---------------|
+| `config.test.ts` | Env var loading, required var validation, default fallbacks |
+| `services/auth.test.ts` | JWT sign/verify round-trip, reject wrong secret |
+| `services/http-auth.test.ts` | Bearer token extraction, malformed header rejection, userId validation |
+| `services/tool-registry.test.ts` | Tool registration, OpenAI schema export, dispatch, unknown tool error |
+| `services/summary-jobs.test.ts` | Promise queue settling, timeout behavior for in-flight jobs |
+| `tools/weather.test.ts` | Cache-first logic, stale fallback to API, TTL enforcement, polling integration |
+| `tools/memory.test.ts` | Keyword matching, date boundary helpers, summary formatting |
+
+```bash
+pnpm test             # Vitest run (server + shared)
+pnpm test:watch       # Vitest watch mode
+pnpm verify           # Full pipeline: typecheck → lint → test → build
+```
+
+Not yet tested: relay message handling, audio encoding/decoding, end-to-end session lifecycle, client hooks.
 
 ## Important decisions and tradeoffs
 
@@ -332,8 +350,4 @@ See [docs/decisions.md](decisions.md) for the full ADR log. Key decisions:
 
 - **Audio sample rate mismatch handling**: Many browsers ignore the `sampleRate: 24000` constraint on `getUserMedia` and capture at 48kHz instead. The AudioWorklet detects this and performs integer-ratio downsampling (skip every other sample). If the mismatch is not an integer ratio, audio quality degrades.
 
-- **The `status` ServerMessage type exists in the wire protocol but is never sent by the server or handled by the client**. The client derives display status from other message types (e.g., `session.ready` → connected, first `audio` → speaking). If you add server-pushed status changes, the client handler will need a new case.
-
-- **Shutdown with in-flight summaries**: `process.exit(0)` in the shutdown handler may terminate before async session summaries complete. The summary generation is fire-and-forget (`void (async () => { ... })()`). In production, in-flight operations should be tracked and awaited.
-
-- **No auth on REST endpoints**: The preferences and sessions routes accept a bare `userId` query parameter with no JWT verification. The WebSocket route properly verifies JWT. This is acceptable for a demo but would need middleware-level auth for production.
+- **Shutdown with in-flight summaries**: The server tracks pending summary jobs via `summary-jobs.ts` and waits up to 5 seconds at shutdown. If summaries are still in-flight after the timeout, they are abandoned. Check `summaryWait.timedOut` in the shutdown handler if you need to extend this window.

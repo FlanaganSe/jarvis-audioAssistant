@@ -8,7 +8,7 @@ pnpm dev              # Local dev
 pnpm test             # Unit tests
 pnpm lint             # Lint + format check
 pnpm typecheck        # TypeScript type checking
-pnpm ci               # Full CI: typecheck, lint, test
+pnpm verify           # Full CI: typecheck, lint, test, build
 ```
 
 ## Rules
