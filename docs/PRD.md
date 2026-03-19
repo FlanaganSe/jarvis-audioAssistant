@@ -522,6 +522,8 @@ ApiCache       -- id, endpoint, response_data (JSONB), fetched_at, expires_at
 GitHubCache    -- id, repo_url, query_type, response_data (JSONB), fetched_at, expires_at
 ```
 
+> **Implementation note:** `ApiCache` and `GitHubCache` tables are not yet implemented. Weather caching uses Redis (180s TTL). GitHub data is fetched on demand without a caching layer.
+
 Multi-tenant RLS on `user_id` from the data model layer.
 
 ---

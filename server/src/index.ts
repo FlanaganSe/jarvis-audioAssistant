@@ -1,5 +1,9 @@
 import "dotenv/config";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { loadConfig } from "./config.js";
@@ -40,6 +44,25 @@ registerAuthRoute(fastify, config);
 registerPreferencesRoute(fastify, config);
 registerSessionsRoute(fastify, config);
 registerWsRoute(fastify, config);
+
+// Serve client build in production (no-ops if client/dist doesn't exist)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDistPath = path.resolve(__dirname, "../../client/dist");
+
+if (existsSync(clientDistPath)) {
+  await fastify.register(fastifyStatic, {
+    root: clientDistPath,
+    prefix: "/",
+    wildcard: false,
+  });
+
+  fastify.setNotFoundHandler(async (request, reply) => {
+    if (request.url.startsWith("/api/") || request.url.startsWith("/ws/")) {
+      return reply.status(404).send({ error: "Not found" });
+    }
+    return reply.sendFile("index.html");
+  });
+}
 
 const cleanup = startIdleChecker(fastify.log);
 

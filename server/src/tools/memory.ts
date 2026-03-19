@@ -5,7 +5,7 @@ import { sessionSummaries, sessions } from "../db/schema.js";
 import type { ToolRegistry } from "../services/tool-registry.js";
 import type { ToolDefinition, ToolResult } from "./types.js";
 
-function startOfDay(daysAgo: number): Date {
+export function startOfDay(daysAgo: number): Date {
   const d = new Date();
   d.setDate(d.getDate() - daysAgo);
   d.setHours(0, 0, 0, 0);
@@ -64,7 +64,7 @@ async function fetchSummaries(db: Db, userId: string, timeframe?: string): Promi
   return rows as SummaryRow[];
 }
 
-function keywordMatch(summary: SummaryRow, keywords: string[]): boolean {
+export function keywordMatch(summary: SummaryRow, keywords: string[]): boolean {
   const haystack = [
     ...(summary.topics ?? []),
     JSON.stringify(summary.entities ?? {}),
@@ -77,7 +77,7 @@ function keywordMatch(summary: SummaryRow, keywords: string[]): boolean {
   return keywords.some((kw) => haystack.includes(kw));
 }
 
-function formatSummary(s: SummaryRow): Record<string, unknown> {
+export function formatSummary(s: SummaryRow): Record<string, unknown> {
   const startDate = s.startedAt ? new Date(s.startedAt).toLocaleDateString() : "unknown date";
   const durationMin =
     s.startedAt && s.endedAt

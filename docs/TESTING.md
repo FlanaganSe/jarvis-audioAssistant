@@ -18,6 +18,9 @@ The automated suite is intentionally small and high-signal. It currently covers:
 - Bearer token parsing and companion-route auth helpers
 - Tool registry registration, OpenAI tool definition generation, and dispatch
 - Session summary job tracking and shutdown wait behavior
+- Weather tool freshness enforcement (cache fresh/stale/miss, fetch failure)
+- Memory recall keyword matching, `startOfDay` date math, and `formatSummary` shaping
+- Config validation (required env vars throw, optional vars default)
 
 ## What Is Not Covered Yet
 
