@@ -64,3 +64,10 @@ Append-only log. Never edit past entries.
 **Context:** Voice-first interface has no login screen. Pre-built auth UI components (Clerk, Auth0) are irrelevant. WebSocket auth requires a token-based approach.
 **Decision:** Use `jose` for JWT signing/verification. Token is passed as a query parameter on WebSocket upgrade. User identity is persisted in localStorage on the client.
 **Consequences:** Simple, no vendor dependency. Sufficient for demo. Production would need proper identity verification (OAuth, SSO) and token refresh.
+
+### ADR-008: Railway "Wait for CI" over GitHub Actions deploy workflow
+**Date:** 2026-03-19
+**Status:** accepted
+**Context:** Two approaches were evaluated: (1) explicit `railway up` from a GitHub Actions deploy workflow, or (2) Railway's "Wait for CI" auto-deploy. The explicit approach offers more visibility in GitHub but requires managing a Railway project token as a secret, duplicates the verify step, and adds workflow complexity. "Wait for CI" leverages Railway's native GitHub integration with zero additional secrets.
+**Decision:** Use Railway "Wait for CI" auto-deploy. CI runs in GitHub Actions (`ci.yml`); Railway watches the commit status and deploys only after CI passes. No separate deploy workflow.
+**Consequences:** Fewer secrets to manage (no `RAILWAY_TOKEN` in GitHub). Deploy visibility is in the Railway dashboard rather than GitHub Actions. Manual deploys use the Railway dashboard or CLI directly. The deploy workflow (`deploy-production.yml`) was created then removed — this is intentional, not an oversight.

@@ -124,6 +124,8 @@ server/           Fastify backend
     types.ts      SessionState interface
 
 client/           React + Vite companion UI
+  public/
+    audio-worklet-processor.js  PCM16 capture processor (must be static file, not data: URL)
   src/
     main.tsx      Entry point — StrictMode + createRoot
     App.tsx       Root layout — StatusBar, Transcript, PushToTalkButton, SessionControls, InfoDrawer
@@ -141,18 +143,26 @@ client/           React + Vite companion UI
       ToolCallIndicator.tsx  Status badge: running/done/error with duration
       ProposalCard.tsx    Structured card: fix plan / PR outline / comment draft
     lib/
-      audio-worklet-processor.ts  PCM16 capture processor running in AudioWorklet thread
+      audio-worklet.d.ts  TypeScript declarations for AudioWorkletProcessor
     styles.ts     Design system tokens (colors, spacing, radii, fonts, font sizes)
     types.ts      TranscriptTurn, ToolCallInfo, ProposalInfo
     index.css     Global resets, keyframe animations, scrollbar styling
 
 docs/             Product documentation
-  requirements.md   Original requirements brief from stakeholder
-  PRD.md            Full product requirements document
-  research.md       Architecture research synthesis
-  research-providers.md  Detailed provider comparisons and benchmarks
-  decisions.md      Architectural decision records (ADR-001 through ADR-007)
-  SYSTEM.md         Domain model, constraints, key patterns, gotchas
+  requirements.md       Original requirements brief from stakeholder
+  PRD.md                Full product requirements document
+  research.md           Architecture research synthesis
+  research-providers.md Detailed provider comparisons and benchmarks
+  decisions.md          Architectural decision records (ADR-001 through ADR-008)
+  SYSTEM.md             Domain model, constraints, key patterns, gotchas
+  architecture.md       System design — runtime shape, trust boundaries, reliability
+  DEPLOYMENT.md         Railway production deployment guide
+  DEVELOPMENT.md        Local setup and daily commands
+  TESTING.md            Test strategy and coverage map
+
+.github/
+  workflows/
+    ci.yml        GitHub Actions CI — typecheck → lint → test → build on push/PR
 ```
 
 ## Core concepts
@@ -236,6 +246,7 @@ Used exclusively for weather data caching. Keys follow `weather:<city>` with 180
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | GET | `/api/health` | None | Liveness check |
+| GET | `/api/health/ready` | None | Readiness check (verifies DB connectivity) |
 | POST | `/api/auth/register` | None | Create demo user, returns `userId` |
 | POST | `/api/auth/token` | None | Exchange `userId` for JWT |
 | GET | `/api/preferences` | Bearer JWT | List user preferences |
@@ -298,6 +309,30 @@ pnpm dev                       # Starts server + client concurrently
 
 The Vite dev server proxies `/api` and `/ws` to `localhost:3001`.
 
+### Deployment (Railway)
+
+The production deployment runs on Railway as a single web service serving the API, WebSocket relay, and SPA from one origin.
+
+```
+git push → GitHub Actions CI (verify) → Railway auto-deploys on commit status pass
+```
+
+**Infrastructure**:
+- **Build**: RAILPACK builder — `pnpm install --frozen-lockfile && pnpm build`
+- **Start**: `node server/dist/index.js` (serves built client from `client/dist/` as static files)
+- **Pre-deploy**: `drizzle-kit migrate` runs database migrations automatically
+- **Health check**: `GET /api/health/ready` verifies DB connectivity (120s timeout for cold starts)
+- **Restart policy**: ON_FAILURE, max 5 retries
+
+**Constraints**:
+- Single replica only — in-memory `SessionManager` is not shared across instances
+- WebSocket keepalive pings every 25s to prevent Railway's 60s idle disconnect
+- Server binds to `::` (IPv6 dual-stack) for Railway's networking layer
+- PostgreSQL requires manual `CREATE EXTENSION vector` for pgvector
+- Redis is optional (Railway Redis add-on or omit entirely)
+
+See [docs/DEPLOYMENT.md](DEPLOYMENT.md) for the full setup guide.
+
 ## Testing
 
 Server-side unit tests use Vitest, co-located next to source files. No client-side tests exist yet.
@@ -340,6 +375,8 @@ See [docs/decisions.md](decisions.md) for the full ADR log. Key decisions:
 
 **No React state library**: The voice session hook manages all state via `useState` + refs. The app is a single screen with no routing. External state management would be over-engineering at this scale.
 
+**Railway auto-deploy via CI (ADR-008)**: GitHub Actions runs the full `verify` pipeline; Railway's "Wait for CI" feature auto-deploys when commit status passes. No deploy step in the CI workflow itself — Railway watches the commit status.
+
 ## Gotchas
 
 - **`dbSessionId` initialization race**: The DB session is created asynchronously. `session.dbSessionId` is initialized as `""` (falsy). During the brief window before the DB insert resolves, `persistMessage` checks `if (!session.dbSessionId)` and silently drops messages. This is intentional — the first few audio chunks don't need persistence.
@@ -351,3 +388,9 @@ See [docs/decisions.md](decisions.md) for the full ADR log. Key decisions:
 - **Audio sample rate mismatch handling**: Many browsers ignore the `sampleRate: 24000` constraint on `getUserMedia` and capture at 48kHz instead. The AudioWorklet detects this and performs integer-ratio downsampling (skip every other sample). If the mismatch is not an integer ratio, audio quality degrades.
 
 - **Shutdown with in-flight summaries**: The server tracks pending summary jobs via `summary-jobs.ts` and waits up to 5 seconds at shutdown. If summaries are still in-flight after the timeout, they are abandoned. Check `summaryWait.timedOut` in the shutdown handler if you need to extend this window.
+
+- **AudioWorklet must be a static file**: The `audio-worklet-processor.js` is served from `client/public/`, not bundled or inlined. `audioWorklet.addModule()` rejects `data:` URLs and blob URLs in most browsers. If you move this file, the capture pipeline will silently break.
+
+- **WebSocket keepalive pings**: The relay sends a ping to the client every 25 seconds. Without this, Railway's load balancer closes idle WebSocket connections after 60 seconds, killing the session mid-conversation.
+
+- **Effect dependency stabilization**: The `useVoiceSession` hook's `useEffect` for WebSocket setup depends on memoized callbacks (`play`, `captureStart`, `captureStop`, `stopPlayback`). If these aren't stable (via `useCallback`), the effect re-runs and closes/reopens the WebSocket during bootstrap. This was a real bug that caused immediate disconnects on mount.

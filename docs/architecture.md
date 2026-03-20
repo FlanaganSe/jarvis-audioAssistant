@@ -77,6 +77,6 @@ The UI now uses bearer tokens for recent sessions and preferences, which is bett
 - Shutdown now waits briefly for in-flight session summary jobs before disconnecting storage.
 - The relay preserves both beta and GA-style Realtime event names where useful, which matches current OpenAI migration guidance.
 
-## Current Deployment Caveat
+## Deployment
 
-The client assumes same-origin `/api` and `/ws` paths outside local Vite dev. That keeps the demo simple, but it means serious deployment currently wants a same-origin reverse proxy or one small follow-up for configurable production API origins.
+The client uses same-origin `/api` and `/ws` paths. In production, Railway serves everything from a single service — no reverse proxy or origin configuration needed. See `docs/DEPLOYMENT.md` for the full deployment guide.

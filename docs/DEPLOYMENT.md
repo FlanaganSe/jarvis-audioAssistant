@@ -4,12 +4,12 @@
 
 Jarvis runs as a single Railway web service that serves the API (`/api/*`), WebSocket relay (`/ws/*`), and client SPA (`/*`) from one origin. Backing services are managed PostgreSQL (with pgvector) and managed Redis (optional, used for weather caching).
 
-Deploys flow through GitHub Actions: push to `main` triggers `.github/workflows/deploy-production.yml`, which runs the full verify suite then deploys to Railway via CLI.
+Deploys use Railway's "Wait for CI" feature: pushes to `main` trigger GitHub Actions CI, and Railway auto-deploys only after CI passes.
 
 ```
 GitHub (push to main)
-  → GitHub Actions: verify (typecheck, lint, test, build)
-  → GitHub Actions: deploy (railway up --ci)
+  → GitHub Actions CI: typecheck → lint → test → build
+  → Railway "Wait for CI": waits for CI to pass
     → Railway: build (Railpack + pnpm)
     → Railway: pre-deploy (database migrations)
     → Railway: health check (/api/health/ready)
@@ -52,7 +52,7 @@ Add a Redis service from the Railway dashboard. Redis is used for weather cachin
 - Connect the GitHub repository
 - Do **NOT** set a root directory (the monorepo build uses pnpm workspaces from the repo root)
 - Railway auto-detects `railway.toml` and uses its build/deploy configuration
-- **Disable Railway's GitHub App auto-deploy** — deploys come exclusively from the GitHub Actions workflow
+- Enable **"Wait for CI"** in Railway service settings — Railway will wait for GitHub Actions CI to pass before deploying
 
 ## Environment Variables
 
@@ -69,41 +69,24 @@ Set these on the Railway **web service** (not on PostgreSQL or Redis):
 | `NODE_ENV` | `production` | Recommended | Enforces JWT_SECRET requirement; app starts without it but skips prod safety checks |
 | `PORT` | **Do NOT set** | — | Railway auto-injects this |
 
-## GitHub Environment Setup
-
-1. Go to repo **Settings → Environments → New environment** and create `production`
-2. Under **Deployment branches**, restrict to `main` only
-3. Do **NOT** enable "Required reviewers" — deploys run automatically on merge
-4. Add environment **secret**:
-   - `RAILWAY_TOKEN` — generate at Railway project → Settings → Tokens (project-scoped token)
-5. Add environment **variables**:
-   - `RAILWAY_SERVICE_NAME` — the name of your Railway web service
-   - `RAILWAY_ENVIRONMENT_NAME` — typically `production`
-
 ## How Deploys Work
 
 1. Code merges to `main`
-2. `.github/workflows/deploy-production.yml` triggers automatically
-3. **verify** job: typecheck → lint → test → build (same checks as CI)
-4. **deploy** job: installs Railway CLI, runs `railway up --ci`
-5. Railway receives the source and builds using `railway.toml` config (Railpack + `pnpm install --frozen-lockfile && pnpm build`)
-6. `preDeployCommand` runs database migrations (`drizzle-kit migrate`)
-7. Health check polls `GET /api/health/ready` (checks DB connectivity)
-8. On healthy response, traffic switches to the new version (zero-downtime)
-
-Both `ci.yml` and `deploy-production.yml` trigger on push to main. They run independently — the deploy workflow has its own verify step and does not depend on ci.yml. The `ci.yml` workflow also runs on PRs (where deploy does not trigger).
+2. GitHub Actions CI (`.github/workflows/ci.yml`) runs: typecheck → lint → test → build
+3. Railway detects CI passed via "Wait for CI" and starts a deploy
+4. Railway builds using `railway.toml` config (Railpack + `pnpm install --frozen-lockfile && pnpm build`)
+5. `preDeployCommand` runs database migrations (`drizzle-kit migrate`)
+6. Health check polls `GET /api/health/ready` (checks DB connectivity)
+7. On healthy response, traffic switches to the new version (zero-downtime)
 
 ## First Deploy Checklist
 
 - [ ] Railway project created
 - [ ] PostgreSQL (pgvector) provisioned and `CREATE EXTENSION vector` run
 - [ ] Redis provisioned
-- [ ] Web service created from GitHub repo (auto-deploy disabled)
+- [ ] Web service created from GitHub repo with "Wait for CI" enabled
 - [ ] All environment variables set on the web service (see table above)
-- [ ] GitHub `production` environment created with deployment branch restriction to `main`
-- [ ] `RAILWAY_TOKEN` secret added to GitHub environment
-- [ ] `RAILWAY_SERVICE_NAME` and `RAILWAY_ENVIRONMENT_NAME` variables added to GitHub environment
-- [ ] Push to main and watch the deploy workflow in GitHub Actions
+- [ ] Push to main and verify CI passes, then watch Railway deploy
 - [ ] Verify app is reachable at `https://<service>.up.railway.app/api/health/ready`
 
 ## Ongoing Operations
@@ -111,11 +94,11 @@ Both `ci.yml` and `deploy-production.yml` trigger on push to main. They run inde
 ### Viewing logs
 
 ```bash
-# Via Railway CLI (requires RAILWAY_TOKEN or login)
+# Via Railway CLI (requires login)
 railway logs --service <service-name> --environment production
 
-# Via GitHub Actions
-# Each deploy run shows build and deploy logs in the Actions tab
+# Via Railway dashboard
+# Build and deploy logs are visible per deployment
 ```
 
 ### Database migrations
@@ -134,17 +117,18 @@ cd server && pnpm exec drizzle-kit generate --name <migration-name>
 
 ### Manual deploy
 
-Trigger a deploy without pushing code via the GitHub Actions UI:
-1. Go to **Actions → Deploy Production → Run workflow**
-2. Select the `main` branch
-3. Click **Run workflow**
+Trigger a deploy without pushing code from the Railway dashboard: select a previous deployment and redeploy, or use the Railway CLI:
+
+```bash
+railway up
+```
 
 ### Rollback
 
 To roll back to a previous version:
 1. Find the commit to roll back to in git history
 2. Push that commit to `main` (via revert commit or reset)
-3. The deploy workflow triggers and deploys the older code
+3. CI passes, Railway auto-deploys the older code
 
 Railway also supports redeploying previous deployments from its dashboard.
 
