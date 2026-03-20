@@ -39,7 +39,7 @@ export function useVoiceSession(): VoiceSession {
   const pendingUserTurnIdRef = useRef<string | null>(null);
   const audioBytesSentRef = useRef(0);
 
-  const capture = useAudioCapture();
+  const { start: captureStart, stop: captureStop, level: audioLevel } = useAudioCapture();
   const { play, stop: stopPlayback } = useAudioPlayback();
 
   const updateStatus = useCallback((s: DisplayStatus) => {
@@ -304,14 +304,14 @@ export function useVoiceSession(): VoiceSession {
   }, [updateStatus, play]);
 
   const disconnect = useCallback(() => {
-    capture.stop();
+    captureStop();
     stopPlayback();
     wsRef.current?.close(1000, "User ended session");
     wsRef.current = null;
     setAuthToken(null);
     updateStatus("disconnected");
     setConnectedAt(null);
-  }, [updateStatus, capture, stopPlayback]);
+  }, [updateStatus, captureStop, stopPlayback]);
 
   useEffect(() => {
     if (autoConnectAttemptedRef.current) {
@@ -324,12 +324,12 @@ export function useVoiceSession(): VoiceSession {
 
   useEffect(() => {
     return () => {
-      capture.stop();
+      captureStop();
       stopPlayback();
       wsRef.current?.close(1000, "Component unmounted");
       wsRef.current = null;
     };
-  }, [capture, stopPlayback]);
+  }, [captureStop, stopPlayback]);
 
   const startListening = useCallback(async () => {
     if (statusRef.current === "speaking") {
@@ -360,7 +360,7 @@ export function useVoiceSession(): VoiceSession {
     ]);
 
     try {
-      await capture.start((base64) => {
+      await captureStart((base64: string) => {
         audioBytesSentRef.current += Math.floor((base64.length * 3) / 4);
         sendMessage({ type: "audio", data: base64 });
       });
@@ -375,11 +375,11 @@ export function useVoiceSession(): VoiceSession {
       updateStatus("error");
       setError(err instanceof Error ? err.message : "Microphone access failed");
     }
-  }, [updateStatus, capture, stopPlayback, sendMessage]);
+  }, [updateStatus, captureStart, stopPlayback, sendMessage]);
 
   const stopListening = useCallback(() => {
     if (statusRef.current !== "listening") return;
-    capture.stop();
+    captureStop();
 
     if (audioBytesSentRef.current < MIN_COMMIT_BYTES) {
       // Too short to commit — OpenAI requires >=100ms of audio
@@ -396,7 +396,7 @@ export function useVoiceSession(): VoiceSession {
     sendMessage({ type: "commit" });
     updateStatus("processing");
     console.log(`[latency] Commit sent at ${Date.now()}`);
-  }, [updateStatus, capture, sendMessage]);
+  }, [updateStatus, captureStop, sendMessage]);
 
   return {
     status,
@@ -405,7 +405,7 @@ export function useVoiceSession(): VoiceSession {
     error,
     userId,
     authToken,
-    audioLevel: capture.level,
+    audioLevel,
     connect,
     disconnect,
     startListening,
