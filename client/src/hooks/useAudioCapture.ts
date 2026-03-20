@@ -40,9 +40,7 @@ export function useAudioCapture(): AudioCaptureControls {
       );
     }
 
-    await ctx.audioWorklet.addModule(
-      new URL("../lib/audio-worklet-processor.ts", import.meta.url).href,
-    );
+    await ctx.audioWorklet.addModule("/audio-worklet-processor.js");
 
     const source = ctx.createMediaStreamSource(stream);
     sourceRef.current = source;

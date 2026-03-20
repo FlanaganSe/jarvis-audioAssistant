@@ -3,9 +3,12 @@
 // Also computes RMS level for visualization
 
 class PCM16CaptureProcessor extends AudioWorkletProcessor {
-  private frameCount = 0;
+  constructor() {
+    super();
+    this.frameCount = 0;
+  }
 
-  process(inputs: Float32Array[][]): boolean {
+  process(inputs) {
     const input = inputs[0]?.[0];
     if (!input || input.length === 0) return true;
 
