@@ -1,4 +1,3 @@
-// trigger Railway initial deploy
 import "dotenv/config";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -88,4 +87,4 @@ const shutdown = async () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-await fastify.listen({ port: config.port, host: "0.0.0.0" });
+await fastify.listen({ port: config.port, host: "::" });
